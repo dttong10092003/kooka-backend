@@ -8,15 +8,17 @@ from typing import List, Optional
 import math
 import os
 from unidecode import unidecode  # Import hàm unidecode từ thư viện unidecode
-import requests  # Import requests for HTTP calls
+from pymongo import MongoClient
+from bson import json_util  # Import json_util để xử lý ObjectId
 
 # --- CONFIG ---
-JSON_FILE = "recipe_test.json"  # File data của bạn
+MONGODB_URI = "mongodb+srv://tong100920031:thanhtong@thanhtong.jn0cqtj.mongodb.net/?retryWrites=true&w=majority&appName=thanhtong"  # Thay bằng URI đầy đủ của bạn
+DB_NAME = "test"  # Tên database MongoDB
+COLLECTION_NAME = "recipes"  # Tên collection MongoDB
 CHROMA_PATH = "./chroma_db"  # Folder lưu ChromaDB
 
 # ChromaDB config
 client = chromadb.PersistentClient(path=CHROMA_PATH)
-COLLECTION_NAME = "recipes"
 if COLLECTION_NAME in [c.name for c in client.list_collections()]:
     collection = client.get_collection(COLLECTION_NAME)
 else:
@@ -27,10 +29,26 @@ embed_model = SentenceTransformer("all-MiniLM-L6-v2")
 
 app = FastAPI(title="Recipe Search Service")
 
-# Hàm load recipes từ JSON
+# Kết nối MongoDB
+mongo_client = MongoClient(MONGODB_URI)
+db = mongo_client[DB_NAME]
+mongo_collection = db[COLLECTION_NAME]
+
+# Hàm load recipes từ MongoDB
 def load_recipes():
-    with open(JSON_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+    try:
+        recipes = list(mongo_collection.find())
+        # Chuyển _id thành id một cách an toàn
+        for r in recipes:
+            if "_id" in r:
+                r["id"] = str(r["_id"])
+                del r["_id"]
+            else:
+                print(f"[MongoDB] Warning: Document without _id: {r}")
+        return recipes
+    except Exception as e:
+        print(f"[MongoDB] Error loading recipes: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Hàm index data vào ChromaDB
 def load_and_index(force_reindex=False):
@@ -40,14 +58,16 @@ def load_and_index(force_reindex=False):
             ids, docs, metas, embs = [], [], [], []
             for r in recipes:
                 if not isinstance(r, dict) or "name" not in r or "id" not in r:
-                    print(f"[Index] Skipping invalid recipe: {r}")
+                    print(f"[Index] Skipping invalid recipe (missing name or id): {r}")
                     continue
                 
                 rid = r["id"]
                 ingredients_str = ", ".join(r.get("ingredients", []))
                 tags_str = ", ".join(r.get("tags", []))
-                instructions_str = json.dumps(r.get("instructions", []))
-                
+                # Sử dụng json_util để serialize instructions, xử lý ObjectId
+                instructions = r.get("instructions", [])
+                instructions_str = json.dumps(instructions, default=json_util.default)
+
                 text = f"{r['name']}. Nguyên liệu: {ingredients_str}. Tags: {tags_str}. Tóm tắt: {r.get('short','')}. Cuisine: {r.get('cuisine','')}. Category: {r.get('category','')}. Calories: {r.get('calories',0)}."
                 
                 emb = embed_model.encode(text).tolist()
@@ -60,7 +80,7 @@ def load_and_index(force_reindex=False):
                     "short": r.get("short", ""),
                     "ingredients": ingredients_str,
                     "tags": tags_str,
-                    "instructions": instructions_str,
+                    "instructions": instructions_str,  # Lưu chuỗi đã serialize
                     "image": r.get("image", ""),
                     "video": r.get("video", ""),
                     "calories": r.get("calories", 0),
@@ -75,7 +95,7 @@ def load_and_index(force_reindex=False):
                 embs.append(emb)
             
             collection.upsert(ids=ids, documents=docs, metadatas=metas, embeddings=embs)
-            print(f"[Index] Indexed {len(ids)} recipes")
+            print(f"[Index] Indexed {len(ids)} recipes from MongoDB")
         else:
             print(f"[Index] Collection already has {collection.count()} items")
     except Exception as e:

@@ -1,3 +1,5 @@
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+
 Cách vào venv (Dùng với CMD)
     venv\Scripts\activate
 Thoát khỏi venv
