@@ -3,6 +3,8 @@ const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 const authRoutes = require("./routes/authRoute");
 const passport = require("./config/passport"); // import config passport
+const cors = require("cors");
+
 
 // Tạo super-admin mặc định
 const bcrypt = require("bcryptjs");
@@ -26,6 +28,14 @@ const createDefaultAdmin = async () => {
 
 dotenv.config();
 const app = express();
+
+// ====== CORS CONFIG ======
+app.use(cors({
+  origin: "http://localhost:5173", // cho phép frontend React
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true, // nếu bạn dùng cookie/session
+}));
 
 app.use(express.json());
 
