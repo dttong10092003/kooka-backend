@@ -26,27 +26,41 @@ const registerUser = async (req, res) => {
 };
 
 // Đăng nhập
+// Đăng nhập
 const loginUser = async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { usernameOrEmail, password } = req.body;
 
-    const user = await User.findOne({ username });
-    if (!user) return res.status(400).json({ message: "Invalid username or password" });
+    // Tìm user theo username hoặc email
+    const user = await User.findOne({
+      $or: [{ username: usernameOrEmail }, { email: usernameOrEmail }],
+    });
+
+    if (!user) return res.status(400).json({ message: "Invalid username/email or password" });
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ message: "Invalid username or password" });
+    if (!isMatch) return res.status(400).json({ message: "Invalid username/email or password" });
 
     const token = jwt.sign(
-      { id: user._id, username: user.username },
+      { id: user._id, username: user.username, email: user.email, isAdmin: user.isAdmin },
       process.env.JWT_SECRET,
       { expiresIn: "1h" }
     );
 
-    res.json({ message: "Login success", token });
+    res.json({
+      message: "Login success",
+      token,
+      user: {
+        username: user.username,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      },
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
+
 
 // Đăng nhập bằng Google (sau khi callback)
 const googleLogin = async (req, res) => {
