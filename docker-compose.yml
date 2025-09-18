@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  # Service cho Recipe Search (FastAPI)
+  recipe-search:
+    build:
+      context: ./python_cook-service
+      dockerfile: Dockerfile
+    image: recipe-search-service
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGODB_URI=${MONGODB_URI}
+    restart: unless-stopped
+
+  # Service cho Recipe CRUD (Node.js)
+  recipe-crud:
+    build:
+      context: ./recipe-service
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - MONGODB_URI=${MONGODB_URI}
+    restart: unless-stopped
