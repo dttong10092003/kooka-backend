@@ -20,7 +20,7 @@ const authenticateJWT = (req, res, next) => {
 };
 
 // Signup & Login
-router.post("/signup", authService.registerUser);
+router.post("/register", authService.registerUser);
 router.post("/login", authService.loginUser);
 
 // Google login

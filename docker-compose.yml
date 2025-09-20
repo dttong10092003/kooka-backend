@@ -23,3 +23,48 @@ services:
     environment:
       - MONGODB_URI=${MONGODB_URI}
     restart: unless-stopped
+
+
+
+#  TEST
+# version: "3.8"
+# services:
+#   mongo:
+#     image: mongo:6
+#     container_name: mongo
+#     restart: always
+#     ports:
+#       - "27017:27017"
+#     volumes:
+#       - mongo-data:/data/db
+
+#   auth-service:
+#     build: ./auth-service
+#     container_name: auth-service
+#     restart: always
+#     ports:
+#       - "5001:5001"
+#     environment:
+#       - PORT=5001
+#       - MONGO_URI=mongodb+srv://kooka:kooka@kookaauth.ntvjhak.mongodb.net/KookaAuth?retryWrites=true&w=majority&appName=KookaAuth
+#       - JWT_SECRET=8a0c4a7b4f62b93c2e3f8cfa8d09e6e28e23d7a4a93a94e987ad8e4e8f6f61b9
+#       - GOOGLE_CLIENT_ID=585221748688-dl1nps627hvfeh3r8da64rc90ah4abkq.apps.googleusercontent.com
+#       - GOOGLE_CLIENT_SECRET=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
+#     depends_on:
+#       - mongo
+
+#   user-service:
+#     build: ./user-service
+#     container_name: user-service
+#     restart: always
+#     ports:
+#       - "5002:5002"
+#     environment:
+#       - PORT=5002
+#       - MONGO_URI=mongodb+srv://kookauser:kookauser@kookauser.0kr6mha.mongodb.net/KookaUser?retryWrites=true&w=majority&appName=KookaUser
+#     depends_on:
+#       - mongo
+
+# volumes:
+#   mongo-data:
+

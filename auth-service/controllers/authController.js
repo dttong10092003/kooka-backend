@@ -1,31 +1,69 @@
 const User = require("../models/user");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const axios = require("axios");
+const generateUniqueUsername = async (email) => {
+  let baseUsername = email.split("@")[0];
+  let username = baseUsername;
+  let counter = 1;
 
+  // Lặp cho tới khi tìm username chưa tồn tại
+  while (await User.findOne({ username })) {
+    username = `${baseUsername}${counter}`;
+    counter++;
+  }
+
+  return username;
+};
 // Đăng ký
 const registerUser = async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { firstName, lastName, email, password, confirmPassword } = req.body;
 
-    const existUser = await User.findOne({ username });
-    if (existUser) return res.status(400).json({ message: "Username already exists" });
+    // Check confirm password
+    if (password !== confirmPassword) {
+      return res.status(400).json({ message: "Passwords do not match" });
+    }
+
+    // Check email tồn tại
+    const existUser = await User.findOne({ email });
+    if (existUser) return res.status(400).json({ message: "Email already exists" });
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // 👉 Tạo username unique từ email
+    const username = await generateUniqueUsername(email);
+
     const newUser = new User({
       username,
-      password: hashedPassword
+      firstName,
+      lastName,
+      email,
+      password: hashedPassword,
     });
 
     await newUser.save();
 
-    res.status(201).json({ message: "User created successfully" });
+    // Gọi sang user-service để tạo profile
+    try {
+      await axios.post("http://user-service:5002/profiles", {
+        userId: newUser._id,
+        firstName,
+        lastName,
+      });
+    } catch (profileErr) {
+      console.error("Error creating profile:", profileErr.message);
+    }
+
+    res.status(201).json({
+      message: "User registered successfully",
+      username: newUser.username, // trả về để frontend biết
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
-// Đăng nhập
 // Đăng nhập
 const loginUser = async (req, res) => {
   try {
