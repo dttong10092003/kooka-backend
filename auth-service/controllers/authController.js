@@ -22,12 +22,16 @@ const registerUser = async (req, res) => {
 
     // Check confirm password
     if (password !== confirmPassword) {
-      return res.status(400).json({ message: "Passwords do not match" });
+      return res.status(400).json({
+        code: "auth.passwordNotMatch"
+      })
     }
 
     // Check email tồn tại
     const existUser = await User.findOne({ email });
-    if (existUser) return res.status(400).json({ message: "Email already exists" });
+    if (existUser) return res.status(400).json({
+      code: "auth.emailExist"
+    });
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -55,10 +59,22 @@ const registerUser = async (req, res) => {
       console.error("Error creating profile:", profileErr.message);
     }
 
+    const token = jwt.sign(
+      { id: newUser._id, username: newUser.username, email: newUser.email, isAdmin: newUser.isAdmin },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
     res.status(201).json({
       message: "User registered successfully",
-      username: newUser.username, // trả về để frontend biết
+      token,
+      user: {
+        username: newUser.username,
+        email: newUser.email,
+        isAdmin: newUser.isAdmin,
+      },
     });
+
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -74,10 +90,10 @@ const loginUser = async (req, res) => {
       $or: [{ username: usernameOrEmail }, { email: usernameOrEmail }],
     });
 
-    if (!user) return res.status(400).json({ message: "Invalid username/email or password" });
+    if (!user) return res.status(400).json({ code: "auth.invalidCredentials" });
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ message: "Invalid username/email or password" });
+    if (!isMatch) return res.status(400).json({ code: "auth.invalidCredentials" });
 
     const token = jwt.sign(
       { id: user._id, username: user.username, email: user.email, isAdmin: user.isAdmin },
@@ -104,7 +120,7 @@ const loginUser = async (req, res) => {
 const googleLogin = async (req, res) => {
   try {
     if (!req.user) {
-      return res.status(400).json({ message: "Google authentication failed" });
+      return res.status(400).json({ code: "auth.googleAuthFailed" });
     }
 
     const token = jwt.sign(

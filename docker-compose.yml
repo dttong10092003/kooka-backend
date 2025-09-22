@@ -46,10 +46,10 @@ services:
 #       - "5001:5001"
 #     environment:
 #       - PORT=5001
-#       - MONGO_URI=mongodb+srv://kooka:kooka@kookaauth.ntvjhak.mongodb.net/KookaAuth?retryWrites=true&w=majority&appName=KookaAuth
-#       - JWT_SECRET=8a0c4a7b4f62b93c2e3f8cfa8d09e6e28e23d7a4a93a94e987ad8e4e8f6f61b9
-#       - GOOGLE_CLIENT_ID=585221748688-dl1nps627hvfeh3r8da64rc90ah4abkq.apps.googleusercontent.com
-#       - GOOGLE_CLIENT_SECRET=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
+#       - MONGO_URI=${MONGO_URI}
+#       - JWT_SECRET=${JWT_SECRET}
+#       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+#       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
 #     depends_on:
 #       - mongo
 
@@ -61,10 +61,11 @@ services:
 #       - "5002:5002"
 #     environment:
 #       - PORT=5002
-#       - MONGO_URI=mongodb+srv://kookauser:kookauser@kookauser.0kr6mha.mongodb.net/KookaUser?retryWrites=true&w=majority&appName=KookaUser
+#       - MONGO_URI=${MONGO_URI_USER}
 #     depends_on:
 #       - mongo
 
 # volumes:
 #   mongo-data:
+
 
