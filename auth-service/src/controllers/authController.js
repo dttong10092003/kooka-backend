@@ -2,6 +2,24 @@ const authService = require("../services/authService");
 const User = require("../models/user");
 const axios = require("axios");
 
+// ===== Cấu hình user-service URL =====
+const USER_SERVICE_URLS = [
+  "http://user-service:5002",  // cho Docker Compose
+  "http://localhost:5002",     // cho local
+];
+
+// Hàm gọi user-service (thử nhiều URL)
+async function callUserService(path, data) {
+  for (const baseUrl of USER_SERVICE_URLS) {
+    try {
+      return await axios.post(`${baseUrl}${path}`, data);
+    } catch (err) {
+      console.error(`Không kết nối được ${baseUrl}${path}:`, err.message);
+    }
+  }
+  throw new Error("Không thể kết nối user-service ở cả Docker lẫn Local");
+}
+
 // ===== Đăng ký =====
 exports.registerUser = async (req, res) => {
   try {
@@ -17,7 +35,7 @@ exports.registerUser = async (req, res) => {
 
     // Gọi user-service để tạo profile
     try {
-      await axios.post("http://localhost:5002/profiles", {
+      await callUserService("/profiles", {
         userId: user._id,
         firstName,
         lastName,
@@ -57,13 +75,13 @@ exports.googleLogin = async (req, res) => {
 
     // Gọi user-service để tạo profile nếu chưa có
     try {
-      await axios.post("http://localhost:5002/profiles", {
+      await callUserService("/profiles", {
         userId: req.user._id,
         firstName: req.user.firstName || req.user.username,
         lastName: req.user.lastName || "",
       });
     } catch (err) {
-      console.error("❌ Lỗi khi tạo profile ở user-service:", err.message);
+      console.error("Lỗi khi tạo profile ở user-service:", err.message);
     }
 
     // Trả kết quả cho frontend
@@ -105,13 +123,13 @@ exports.createAdmin = async (req, res) => {
 
     // Admin cũng cần profile bên user-service
     try {
-      await axios.post("http://localhost:5002/profiles", {
+      await callUserService("/profiles", {
         userId: admin._id,
         firstName: "Admin",
         lastName: "",
       });
     } catch (err) {
-      console.error("❌ Lỗi khi tạo profile cho admin ở user-service:", err.message);
+      console.error("Lỗi khi tạo profile cho admin ở user-service:", err.message);
     }
 
     res.status(201).json(admin);
