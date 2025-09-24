@@ -27,7 +27,7 @@ app.use("/api/ingredients", ingredientRoutes);
 app.get("/health", (req, res) => res.json({ status: "ok" }));
 
 // Start server
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 
 (async () => {
   try {
