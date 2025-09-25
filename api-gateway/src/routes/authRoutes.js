@@ -6,8 +6,11 @@ dotenv.config();
 const router = express.Router();
 
 // Proxy tới auth-service
-const proxyAuthService = buildProxy(process.env.AUTH_SERVICE_URL);
-
+// const proxyAuthService = buildProxy(process.env.AUTH_SERVICE_URL);
+const proxyAuthService = buildProxy(
+  process.env.AUTH_SERVICE_URL,
+  { "^/api/auth": "/auth" }  // rewrite prefix
+);
 // Các route auth
 router.post("/register", proxyAuthService);
 router.post("/login", proxyAuthService);

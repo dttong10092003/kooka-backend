@@ -1,73 +1,3 @@
-# version: '3.8'
-
-# services:
-#   # Service cho Recipe Search (FastAPI)
-#   recipe-search:
-#     build:
-#       context: ./python_cook-service
-#       dockerfile: Dockerfile
-#     image: recipe-search-service
-#     ports:
-#       - "8000:8000"
-#     environment:
-#       - MONGODB_URI=${MONGODB_URI}
-#     restart: unless-stopped
-
-#   # Service cho Recipe CRUD (Node.js)
-#   recipe-crud:
-#     build:
-#       context: ./recipe-service
-#       dockerfile: Dockerfile
-#     ports:
-#       - "5000:5000"
-#     environment:
-#       - MONGODB_URI=${MONGODB_URI}
-#     restart: unless-stopped
-
-
-
-# #  TEST
-# version: "3.8"
-# services:
-#   mongo:
-#     image: mongo:6
-#     container_name: mongo
-#     restart: always
-#     ports:
-#       - "27017:27017"
-#     volumes:
-#       - mongo-data:/data/db
-
-#   auth-service:
-#     build: ./auth-service
-#     container_name: auth-service
-#     restart: always
-#     ports:
-#       - "5001:5001"
-#     environment:
-#       - PORT=5001
-#       - MONGO_URI=${MONGO_URI}
-#       - JWT_SECRET=${JWT_SECRET}
-#       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-#       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-#     depends_on:
-#       - mongo
-
-#   user-service:
-#     build: ./user-service
-#     container_name: user-service
-#     restart: always
-#     ports:
-#       - "5002:5002"
-#     environment:
-#       - PORT=5002
-#       - MONGO_URI=${MONGO_URI_USER}
-#     depends_on:
-#       - mongo
-
-# volumes:
-#   mongo-data:
-
 version: "3.8"
 
 services:
@@ -91,6 +21,8 @@ services:
       - PORT=3000
       - RECIPE_SERVICE_URL=http://recipe-service:5000
       - PYTHON_COOK_SERVICE_URL=http://python_cook-service:8000
+      - AUTH_SERVICE_URL=http://auth-service:5001
+      - USER_SERVICE_URL=http://user-service:5002
       - JWT_SECRET=8a0c4a7b4f62b93c2e3f8cfa8d09e6e28e23d7a4a93a94e987ad8e4e8f6f61b9
     restart: unless-stopped
     depends_on:
