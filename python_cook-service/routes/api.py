@@ -103,7 +103,7 @@ def search(req: SearchRequest):
         print(f"[Debug] Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/search-by-keyword")
+@router.post("/search/search-by-keyword")
 def search_by_keyword(req: KeywordSearchRequest):
     try:
         # Chuẩn hóa và tách từ khóa
