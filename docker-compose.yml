@@ -1,5 +1,77 @@
 version: "3.8"
 
+# services:
+#   # MongoDB Service
+#   mongo:
+#     image: mongo:6
+#     container_name: mongo
+#     restart: always
+#     ports:
+#       - "27017:27017"
+#     volumes:
+#       - mongo-data:/data/db
+
+#   # Auth Service
+#   auth-service:
+#     build: ./auth-service
+#     container_name: auth-service
+#     restart: always
+#     ports:
+#       - "5001:5001"
+#     environment:
+#       - PORT=5001
+#       - MONGO_URI=${MONGO_URI}
+#       - JWT_SECRET=${JWT_SECRET}
+#       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+#       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+#     depends_on:
+#       - mongo
+
+#   # User Service
+#   user-service:
+#     build: ./user-service
+#     container_name: user-service
+#     restart: always
+#     ports:
+#       - "5002:5002"
+#     environment:
+#       - PORT=5002
+#       - MONGO_URI=${MONGO_URI_USER}
+#     depends_on:
+#       - mongo
+
+#   # Recipe Search Service (FastAPI)
+#   python_cook-service:
+#     build:
+#       context: ./python_cook-service
+#       dockerfile: Dockerfile
+#     ports:
+#       - "8000:8000"
+#     environment:
+#       - PORT=8000
+#       - MONGODB_URI=${MONGODB_URI}
+#     restart: unless-stopped
+#     depends_on:
+#       - mongo
+
+#   # Recipe CRUD Service (Node.js)
+#   recipe-service:
+#     build:
+#       context: ./recipe-service
+#       dockerfile: Dockerfile
+#     ports:
+#       - "5000:5000"
+#     environment:
+#       - PORT=5000
+#       - MONGODB_URI=${MONGODB_URI}
+#     restart: unless-stopped
+#     depends_on:
+#       - mongo
+
+# volumes:
+#   mongo-data:
+
+
 services:
   # MongoDB Service
   mongo:
@@ -40,33 +112,58 @@ services:
     depends_on:
       - mongo
 
-  # Recipe Search Service (FastAPI)
-  python_cook-service:
-    build:
-      context: ./python_cook-service
-      dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
-    environment:
-      - PORT=8000
-      - MONGODB_URI=${MONGODB_URI}
-    restart: unless-stopped
-    depends_on:
-      - mongo
-
   # Recipe CRUD Service (Node.js)
-  recipe-service:
+  recipe-crud:
     build:
       context: ./recipe-service
       dockerfile: Dockerfile
+    container_name: recipe-crud
+    restart: unless-stopped
     ports:
       - "5000:5000"
     environment:
       - PORT=5000
       - MONGODB_URI=${MONGODB_URI}
-    restart: unless-stopped
     depends_on:
       - mongo
+
+  # Recipe Search Service (FastAPI)
+  recipe-search:
+    build:
+      context: ./python_cook-service
+      dockerfile: Dockerfile
+    container_name: recipe-search
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - MONGODB_URI=${MONGODB_URI}
+    depends_on:
+      - mongo
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - AUTH_SERVICE_URL=http://auth-service:5001
+      - USER_SERVICE_URL=http://user-service:5002
+      - RECIPE_SERVICE_URL=http://recipe-crud:5000
+      - PYTHON_COOK_SERVICE_URL=http://recipe-search:8000
+      - JWT_SECRET=${JWT_SECRET}
+      - NODE_ENV=production
+    restart: unless-stopped
+    depends_on:
+      - auth-service
+      - user-service
+      - recipe-crud
+      - recipe-search
 
 volumes:
   mongo-data:
