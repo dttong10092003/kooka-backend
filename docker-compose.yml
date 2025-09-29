@@ -108,7 +108,7 @@ services:
       - "5002:5002"
     environment:
       - PORT=5002
-      - MONGO_URI=${MONGO_URI_USER}
+      - MONGO_URI_USER=${MONGO_URI_USER}
     depends_on:
       - mongo
 

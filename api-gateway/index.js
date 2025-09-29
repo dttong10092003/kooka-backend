@@ -3,8 +3,8 @@ const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
-// const authRoutes = require('./routes/authRoute');
-// const userRoutes = require('./routes/userRoute');
+const authRoutes = require('./routes/authRoute');
+const userRoutes = require('./routes/userRoute');
 const recipeRoutes = require('./routes/recipeRoute');
 const searchRoutes = require('./routes/searchRoute');
 const proxyIngredientService = require('./routes/ingredientRoute');
@@ -33,8 +33,8 @@ app.get('/health', (req, res) => {
 });
 
 // Routes
-// app.use('/api/auth', authRoutes);
-// app.use('/api/user', userRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/user', userRoutes);
 app.use('/api/recipes', recipeRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/ingredients', proxyIngredientService);

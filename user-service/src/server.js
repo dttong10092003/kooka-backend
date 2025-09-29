@@ -10,11 +10,11 @@ app.use(cors());
 app.use(express.json());
 
 // Routes
-app.use("/profiles", profileRoutes);
+app.use("/api/user/profile", profileRoutes);
 
 // Kết nối MongoDB
 mongoose
-  .connect(process.env.MONGO_URI)
+  .connect(process.env.MONGO_URI_USER)
   .then(() => {
     console.log("✅ User-Service MongoDB connected");
     app.listen(5002, () => console.log("🚀 User-Service running on port 5002"));

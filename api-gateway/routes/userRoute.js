@@ -1,24 +1,15 @@
-// const express = require('express');
-// const router = express.Router();
-// const { createUserProxy } = require('../utils/proxyFactory');
-// const verifyToken = require('../middlewares/verifyToken');
+const express = require("express");
+const buildProxy = require("../utils/proxyFactory");
+const dotenv = require("dotenv");
+dotenv.config();
 
-// // Create user service proxy
-// const userProxy = createUserProxy();
+const router = express.Router();
 
-// // All user routes require authentication
-// // Profile routes
-// router.post('/profile', verifyToken, userProxy);
-// router.get('/profile/:userId', verifyToken, userProxy);
-// router.put('/profile/:userId', verifyToken, userProxy);
+const proxyUserService = buildProxy(process.env.USER_SERVICE_URL);
 
-// // Additional user routes (if you want to add more in the future)
-// router.get('/me', verifyToken, (req, res, next) => {
-//   // Add user ID from token to the request
-//   req.url = `/profile/${req.user.userId || req.user.id}`;
-//   userProxy(req, res, next);
-// });
+// Profile routes - proxy to user-service
+router.post("/profile", proxyUserService);
+router.get("/profile/:userId", proxyUserService);
+router.put("/profile/:userId", proxyUserService);
 
-// // Health check removed to prevent request abort issues
-
-// module.exports = router;
+module.exports = router;

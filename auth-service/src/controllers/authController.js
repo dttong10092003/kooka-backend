@@ -10,11 +10,15 @@ const USER_SERVICE_URLS = [
 
 // Hàm gọi user-service (thử nhiều URL)
 async function callUserService(path, data) {
+  console.log(`🔄 Calling user-service: ${path} with data:`, data);
   for (const baseUrl of USER_SERVICE_URLS) {
     try {
-      return await axios.post(`${baseUrl}${path}`, data);
+      console.log(`🌐 Trying ${baseUrl}${path}...`);
+      const response = await axios.post(`${baseUrl}${path}`, data);
+      console.log(`✅ Success from ${baseUrl}${path}:`, response.status);
+      return response;
     } catch (err) {
-      console.error(`Không kết nối được ${baseUrl}${path}:`, err.message);
+      console.error(`❌ Failed ${baseUrl}${path}:`, err.response?.status || err.message);
     }
   }
   throw new Error("Không thể kết nối user-service ở cả Docker lẫn Local");
@@ -35,7 +39,7 @@ exports.registerUser = async (req, res) => {
 
     // Gọi user-service để tạo profile
     try {
-      await callUserService("/profiles", {
+      await callUserService("/api/user/profile", {
         userId: user._id,
         firstName,
         lastName,
@@ -79,7 +83,7 @@ exports.googleLogin = async (req, res) => {
 
     // Gọi user-service để tạo profile nếu chưa có
     try {
-      await callUserService("/profiles", {
+      await callUserService("/api/user/profile", {
         userId: req.user._id,
         firstName: req.user.firstName || req.user.username,
         lastName: req.user.lastName || "",
@@ -129,7 +133,7 @@ exports.createAdmin = async (req, res) => {
 
     // Admin cũng cần profile bên user-service
     try {
-      await callUserService("/profiles", {
+      await callUserService("/api/user/profile", {
         userId: admin._id,
         firstName: "Admin",
         lastName: "",
