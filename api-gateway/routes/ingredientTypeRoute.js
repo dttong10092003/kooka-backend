@@ -1,7 +1,7 @@
 const express = require("express");
 const buildProxy = require("../utils/proxyFactory");
-// const verifyToken = require("../middlewares/verifyToken");
-// const isAdmin = require("../middlewares/isAdmin");
+const verifyToken = require("../middlewares/verifyToken");
+const isAdmin = require("../middlewares/isAdmin");
 const dotenv = require("dotenv");
 dotenv.config();
 
@@ -11,5 +11,8 @@ const proxyIngredientTypeService = buildProxy(process.env.RECIPE_SERVICE_URL);
 
 router.get("/", proxyIngredientTypeService);
 router.get("/:id", proxyIngredientTypeService);
+router.post("/", verifyToken, isAdmin, proxyIngredientTypeService);
+router.put("/:id", verifyToken, isAdmin, proxyIngredientTypeService);
+router.delete("/:id", verifyToken, isAdmin, proxyIngredientTypeService);
 
 module.exports = router;
