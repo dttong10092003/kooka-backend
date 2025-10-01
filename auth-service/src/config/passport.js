@@ -7,32 +7,47 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: "/auth/google/callback",
+      callbackURL: "http://localhost:3000/api/auth/google/callback",
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
-        // Lấy email chính của Google
-        const email = profile.emails && profile.emails[0] ? profile.emails[0].value : null;
-        const usernameFromEmail = email ? email.split("@")[0] : profile.id; // 👉 chỉ lấy phần trước @
+        // Tìm user theo googleId hoặc email
+        let user = await User.findOne({
+          $or: [
+            { googleId: profile.id },
+            { email: profile.emails[0].value }
+          ]
+        });
 
-        let user = await User.findOne({ googleId: profile.id });
-
-        if (!user) {
-          user = new User({
-            username: usernameFromEmail, // vd: tinphan309z
+        if (user) {
+          // User tồn tại - cập nhật googleId nếu chưa có
+          if (!user.googleId) {
+            user.googleId = profile.id;
+            user.profilePicture = profile.photos[0]?.value;
+            await user.save();
+          }
+          return done(null, user);
+        } else {
+          // Tạo user mới - chỉ lưu thông tin auth
+          const newUser = new User({
             googleId: profile.id,
-            email: email,               // thêm email vào DB
+            username: profile.emails[0].value.split('@')[0],
+            email: profile.emails[0].value,
           });
-          await user.save();
-        } else if (!user.email && email) {
-          // 👉 update nếu user cũ chưa có email
-          user.email = email;
-          await user.save();
+          
+          const savedUser = await newUser.save();
+          
+          // Lưu thông tin profile sang user-service (sẽ được xử lý trong authController)
+          savedUser.googleProfile = {
+            firstName: profile.name.givenName,
+            lastName: profile.name.familyName,
+            profilePicture: profile.photos[0]?.value,
+          };
+          
+          return done(null, savedUser);
         }
-
-        return done(null, user);
-      } catch (err) {
-        return done(err, null);
+      } catch (error) {
+        return done(error, null);
       }
     }
   )

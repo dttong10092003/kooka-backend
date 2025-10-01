@@ -33,6 +33,6 @@ router.get("/failure", (req, res) => res.send("Google login failed"));
 
 
 // Only super admin create new admin
-router.post("/create-admin", authenticateJWT, authController.createAdmin);
+// router.post("/create-admin", authenticateJWT, authController.createAdmin);
 
 module.exports = router;

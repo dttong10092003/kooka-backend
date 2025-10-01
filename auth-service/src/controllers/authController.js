@@ -83,21 +83,74 @@ exports.googleLogin = async (req, res) => {
 
     // Gọi user-service để tạo profile nếu chưa có
     try {
-      await callUserService("/api/user/profile", {
+      const profileData = {
         userId: req.user._id,
-        firstName: req.user.firstName || req.user.username,
-        lastName: req.user.lastName || "",
-      });
+        firstName: req.user.googleProfile?.firstName || req.user.username,
+        lastName: req.user.googleProfile?.lastName || "",
+        avatar: req.user.googleProfile?.profilePicture || null,
+      };
+      
+      await callUserService("/api/user/profile", profileData);
     } catch (err) {
       console.error("Lỗi khi tạo profile ở user-service:", err.message);
     }
 
-    // Trả kết quả cho frontend
     // Loại bỏ password khỏi response
     const { password: _, ...userWithoutPassword } = req.user.toObject();
-    res.json({ token, user: userWithoutPassword });
+    
+    // Trả HTML page để post message về parent window
+    const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Google Login Success</title>
+    </head>
+    <body>
+        <script>
+            const data = {
+                token: "${token}",
+                user: ${JSON.stringify(userWithoutPassword)}
+            };
+            
+            if (window.opener) {
+                window.opener.postMessage({
+                    type: 'GOOGLE_AUTH_SUCCESS',
+                    payload: data
+                }, "http://localhost:5173");
+                window.close();
+            } else {
+                // Fallback: redirect to frontend with token in URL
+                window.location.href = "http://localhost:5173/auth/google/callback?token=${token}";
+            }
+        </script>
+    </body>
+    </html>`;
+    
+    res.send(html);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    // Trả HTML error page
+    const errorHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Google Login Error</title>
+    </head>
+    <body>
+        <script>
+            if (window.opener) {
+                window.opener.postMessage({
+                    type: 'GOOGLE_AUTH_ERROR',
+                    error: "${err.message}"
+                }, "http://localhost:5173");
+                window.close();
+            } else {
+                window.location.href = "http://localhost:5173/login?error=google_auth_failed";
+            }
+        </script>
+    </body>
+    </html>`;
+    
+    res.send(errorHtml);
   }
 };
 
