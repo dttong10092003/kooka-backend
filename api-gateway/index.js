@@ -7,8 +7,12 @@ const authRoutes = require('./routes/authRoute');
 const userRoutes = require('./routes/userRoute');
 const recipeRoutes = require('./routes/recipeRoute');
 const searchRoutes = require('./routes/searchRoute');
-const proxyIngredientService = require('./routes/ingredientRoute');
-const proxyIngredientTypeService = require('./routes/ingredientTypeRoute');
+const ingredientRoutes = require('./routes/ingredientRoute');
+const ingredientTypeRoutes = require('./routes/ingredientTypeRoute');
+const tagRoutes = require('./routes/tagRoute');
+const categoryRoutes = require('./routes/categoryRoute');
+const cuisineRoutes = require('./routes/cuisineRoute');
+
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -37,8 +41,11 @@ app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/recipes', recipeRoutes);
 app.use('/api/search', searchRoutes);
-app.use('/api/ingredients', proxyIngredientService);
-app.use('/api/ingredient-types', proxyIngredientTypeService);
+app.use('/api/ingredients', ingredientRoutes);
+app.use('/api/ingredient-types', ingredientTypeRoutes);
+app.use('/api/tags', tagRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/cuisines', cuisineRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
