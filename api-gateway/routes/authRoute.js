@@ -15,6 +15,10 @@ router.post("/login", proxyAuthService);
 router.post("/change-password", verifyToken, proxyAuthService);
 router.post("/create-admin", verifyToken, isAdmin, proxyAuthService);
 
+// Forgot Password & Reset Password routes
+router.post("/forgot-password", proxyAuthService);
+router.post("/reset-password", proxyAuthService);
+
 // Google OAuth routes
 router.get("/google", proxyAuthService);
 router.get("/google/callback", proxyAuthService);

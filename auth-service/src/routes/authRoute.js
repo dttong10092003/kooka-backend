@@ -23,6 +23,10 @@ router.post("/login", authController.loginUser);
 router.post("/change-password", authenticateJWT, authController.changePassword);
 router.post("/create-admin", authenticateJWT, authController.createAdmin);
 
+// Forgot Password & Reset Password routes
+router.post("/forgot-password", authController.forgotPassword);
+router.post("/reset-password", authController.resetPassword);
+
 router.get("/google", passport.authenticate("google", { scope: ["profile", "email"] }));
 router.get("/google/callback",
   passport.authenticate("google", { session: false, failureRedirect: "/auth/failure" }),

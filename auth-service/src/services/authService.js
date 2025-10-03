@@ -1,6 +1,8 @@
 const User = require("../models/user");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
+const emailService = require("./emailService");
 
 // Tạo username unique từ email
 async function generateUniqueUsername(email) {
@@ -70,6 +72,54 @@ async function createAdminUser(username, password) {
   return await newAdmin.save();
 }
 
+// Forgot Password - Tạo token và gửi email
+async function forgotPassword(email) {
+  const user = await User.findOne({ email });
+  if (!user) {
+    throw new Error("Email không tồn tại trong hệ thống");
+  }
+
+  // Tạo reset token random
+  const resetToken = crypto.randomBytes(32).toString("hex");
+  
+  // Hash token trước khi lưu vào DB (bảo mật)
+  const hashedToken = crypto.createHash("sha256").update(resetToken).digest("hex");
+  
+  // Lưu token và thời gian hết hạn vào DB
+  user.resetPasswordToken = hashedToken;
+  user.resetPasswordExpires = Date.now() + 3600000; // 1 giờ
+  await user.save();
+
+  // Gửi email với token gốc (chưa hash)
+  await emailService.sendResetPasswordEmail(email, resetToken);
+
+  return { message: "Email đặt lại mật khẩu đã được gửi" };
+}
+
+// Reset Password - Kiểm tra token và cập nhật mật khẩu mới
+async function resetPassword(token, newPassword) {
+  // Hash token từ URL để so sánh với token trong DB
+  const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+  // Tìm user với token hợp lệ và chưa hết hạn
+  const user = await User.findOne({
+    resetPasswordToken: hashedToken,
+    resetPasswordExpires: { $gt: Date.now() },
+  });
+
+  if (!user) {
+    throw new Error("Token không hợp lệ hoặc đã hết hạn");
+  }
+
+  // Cập nhật mật khẩu mới
+  user.password = await bcrypt.hash(newPassword, 10);
+  user.resetPasswordToken = undefined;
+  user.resetPasswordExpires = undefined;
+  await user.save();
+
+  return { message: "Mật khẩu đã được đặt lại thành công" };
+}
+
 module.exports = {
   createUser,
   findUserByUsernameOrEmail,
@@ -77,4 +127,6 @@ module.exports = {
   generateToken,
   updatePassword,
   createAdminUser,
+  forgotPassword,
+  resetPassword,
 };
