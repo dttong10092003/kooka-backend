@@ -26,6 +26,7 @@ router.post("/create-admin", authenticateJWT, authController.createAdmin);
 // Forgot Password & Reset Password routes
 router.post("/forgot-password", authController.forgotPassword);
 router.post("/reset-password", authController.resetPassword);
+router.post("/reset-password/:token", authController.resetPassword);
 
 router.get("/google", passport.authenticate("google", { scope: ["profile", "email"] }));
 router.get("/google/callback",

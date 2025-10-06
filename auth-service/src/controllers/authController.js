@@ -222,7 +222,9 @@ exports.forgotPassword = async (req, res) => {
 // ===== Reset Password =====
 exports.resetPassword = async (req, res) => {
   try {
-    const { token, newPassword } = req.body;
+    // Hỗ trợ cả 2 cách: token từ URL params hoặc từ body
+    const token = req.params.token || req.body.token;
+    const { newPassword } = req.body;
     
     if (!token || !newPassword) {
       return res.status(400).json({ message: "Token và mật khẩu mới là bắt buộc" });
