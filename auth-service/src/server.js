@@ -2,6 +2,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 const authRoutes = require("./routes/authRoute");
+dotenv.config();
 const passport = require("./config/passport"); // import config passport
 const cors = require("cors");
 
@@ -26,7 +27,6 @@ const createDefaultAdmin = async () => {
 };
 
 
-dotenv.config();
 const app = express();
 
 // ====== CORS CONFIG ======
