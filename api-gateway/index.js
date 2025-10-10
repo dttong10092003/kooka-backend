@@ -12,7 +12,8 @@ const ingredientTypeRoutes = require('./routes/ingredientTypeRoute');
 const tagRoutes = require('./routes/tagRoute');
 const categoryRoutes = require('./routes/categoryRoute');
 const cuisineRoutes = require('./routes/cuisineRoute');
-
+const commentRoutes = require('./routes/commentRoute');
+const likeRoutes = require('./routes/likeRoute');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -46,6 +47,8 @@ app.use('/api/ingredient-types', ingredientTypeRoutes);
 app.use('/api/tags', tagRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/cuisines', cuisineRoutes);
+app.use('/api/comments', commentRoutes);
+app.use('/api/likes', likeRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
