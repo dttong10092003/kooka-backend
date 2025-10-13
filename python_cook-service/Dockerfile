@@ -1,33 +1,28 @@
-# Stage 1: Build environment
-FROM python:3.12-slim AS builder
+FROM python:3.12-slim
 
 WORKDIR /app
 
-# Cài đặt công cụ hệ thống cần thiết
+# --- Cài công cụ hệ thống cần thiết ---
 RUN apt-get update && apt-get install -y \
     build-essential \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Sao chép và cài dependencies
+# --- Copy requirements trước để Docker cache pip layer ---
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
 
-# Stage 2: Runtime environment
-FROM python:3.12-slim
+# --- Nâng cấp pip và cài dependencies ---
+# ✅ Tải torch từ index CPU chính thức của PyTorch
+RUN pip install --upgrade pip && \
+    pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu && \
+    pip install -r requirements.txt
 
-WORKDIR /app
+# --- Copy code sau (để không làm mất cache của pip install) ---
+COPY . .
 
-# Sao chép dependencies đã cài từ stage 1
-COPY --from=builder /usr/local/lib/python3.12/site-packages/ /usr/local/lib/python3.12/site-packages/
-COPY --from=builder /usr/local/bin/ /usr/local/bin/
-
-# Sao chép code
-COPY . /app
-
-# Thiết lập biến môi trường
+# --- Thiết lập môi trường ---
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Chạy ứng dụng
+# --- Chạy ứng dụng FastAPI ---
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
