@@ -142,32 +142,32 @@ services:
     depends_on:
       - mongo
   # Comment Service
-  # comment-service:
-  #   build:
-  #     context: ./comment-service
-  #     dockerfile: Dockerfile
-  #   container_name: comment-service
-  #   restart: unless-stopped
-  #   ports:
-  #     - "5004:5004"
-  #   environment:
-  #     - PORT=5004
-  #     - MONGODB_URI=mongodb+srv://kookacmt:kookacmt@kookacmt.eht7alz.mongodb.net/?retryWrites=true&w=majority&appName=KookaCmt
-  #     - JWT_SECRET=${JWT_SECRET}
+  comment-service:
+    build:
+      context: ./comment-service
+      dockerfile: Dockerfile
+    container_name: comment-service
+    restart: unless-stopped
+    ports:
+      - "5004:5004"
+    environment:
+      - PORT=5004
+      - MONGODB_URI=mongodb+srv://kookacmt:kookacmt@kookacmt.eht7alz.mongodb.net/?retryWrites=true&w=majority&appName=KookaCmt
+      - JWT_SECRET=${JWT_SECRET}
 
-  # # Like Service
-  # like-service:
-  #   build:
-  #     context: ./like-service
-  #     dockerfile: Dockerfile
-  #   container_name: like-service
-  #   restart: unless-stopped
-  #   ports:
-  #     - "5005:5005"
-  #   environment:
-  #     - PORT=5005
-  #     - MONGODB_URI=mongodb+srv://kookacmt:kookacmt@kookacmt.eht7alz.mongodb.net/?retryWrites=true&w=majority&appName=KookaCmt
-  #     - JWT_SECRET=${JWT_SECRET}
+  # Like Service
+  like-service:
+    build:
+      context: ./like-service
+      dockerfile: Dockerfile
+    container_name: like-service
+    restart: unless-stopped
+    ports:
+      - "5005:5005"
+    environment:
+      - PORT=5005
+      - MONGODB_URI=mongodb+srv://kookacmt:kookacmt@kookacmt.eht7alz.mongodb.net/?retryWrites=true&w=majority&appName=KookaCmt
+      - JWT_SECRET=${JWT_SECRET}
 
   # API Gateway
   api-gateway:
@@ -183,8 +183,8 @@ services:
       - USER_SERVICE_URL=http://user-service:5002
       - RECIPE_SERVICE_URL=http://recipe-service:5000
       - PYTHON_COOK_SERVICE_URL=http://python_cook-service:8000
-      # - COMMENT_SERVICE_URL=http://comment-service:5004
-      # - LIKE_SERVICE_URL=http://like-service:5005
+      - COMMENT_SERVICE_URL=http://comment-service:5004
+      - LIKE_SERVICE_URL=http://like-service:5005
       - JWT_SECRET=${JWT_SECRET}
       - NODE_ENV=production
     restart: unless-stopped
@@ -193,8 +193,8 @@ services:
       - user-service
       - recipe-service
       - python_cook-service
-      # - comment-service
-      # - like-service
+      - comment-service
+      - like-service
 
 volumes:
   mongo-data:
