@@ -23,6 +23,9 @@ router.post("/login", authController.loginUser);
 router.post("/change-password", authenticateJWT, authController.changePassword);
 router.post("/create-admin", authenticateJWT, authController.createAdmin);
 
+// Get user by ID (for other services)
+router.get("/user/:userId", authController.getUserById);
+
 // Forgot Password & Reset Password routes
 router.post("/forgot-password", authController.forgotPassword);
 router.post("/reset-password", authController.resetPassword);

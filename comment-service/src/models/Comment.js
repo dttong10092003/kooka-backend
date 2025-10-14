@@ -14,6 +14,18 @@ const commentSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    firstName: {
+        type: String,
+        default: ''
+    },
+    lastName: {
+        type: String,
+        default: ''
+    },
+    userAvatar: {
+        type: String,
+        default: null
+    },
     content: {
         type: String,
         required: true,

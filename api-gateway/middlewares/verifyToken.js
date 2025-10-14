@@ -63,8 +63,6 @@ module.exports = (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.headers["x-user-id"] = decoded.id; // Set user ID in headers for downstream services
     req.headers["x-user-role"] = decoded.isAdmin; // Set user role in headers for downstream services
-    req.headers["x-user-email"] = decoded.email || ""; // Set user email in headers for downstream services
-    req.headers["x-user-name"] = decoded.name || decoded.email || ""; // Set user name in headers for downstream services
     next();
   } catch (error) {
     return res.status(401).json({ message: "Invalid token" });

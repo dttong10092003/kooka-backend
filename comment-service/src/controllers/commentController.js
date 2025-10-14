@@ -1,13 +1,13 @@
 const commentService = require('../services/commentService');
+const { getUserInfo } = require('../utils/externalServices');
 
 class CommentController {
     async createComment(req, res) {
         try {
             const { recipeId, content, parentCommentId } = req.body;
             
-            // Get user info from headers (set by API Gateway)
+            // Get user ID from headers (set by API Gateway)
             const userId = req.headers['x-user-id'];
-            const userName = req.headers['x-user-name'] || req.headers['x-user-email'] || 'Anonymous';
 
             if (!userId) {
                 return res.status(401).json({ 
@@ -21,10 +21,16 @@ class CommentController {
                 });
             }
 
+            // Fetch username, firstName, lastName, and avatar from external services
+            const userInfo = await getUserInfo(userId);
+
             const commentData = {
                 recipeId,
                 userId,
-                userName,
+                userName: userInfo.username,
+                firstName: userInfo.firstName,
+                lastName: userInfo.lastName,
+                userAvatar: userInfo.avatar,
                 content,
                 parentCommentId: parentCommentId || null
             };
