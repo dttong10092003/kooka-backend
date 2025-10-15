@@ -124,6 +124,7 @@ services:
     environment:
       - PORT=5000
       - MONGODB_URI=${MONGODB_URI}
+      - CLOUDINARY_URL=cloudinary://725489854714717:FWkFjsjCpKtmrpzTCe8S-13cuf8@dh9otw5el
     depends_on:
       - mongo
 
