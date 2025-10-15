@@ -1,4 +1,25 @@
 const Like = require('../models/Like');
+const axios = require('axios');
+
+// Comment service URLs - thử cả Docker và Local
+const COMMENT_SERVICE_URLS = [
+    'http://comment-service:5004',  // Docker
+    'http://localhost:5004'          // Local
+];
+
+// Hàm update like count trong comment-service
+async function updateCommentLikeCount(commentId, likeCount) {
+    for (const baseUrl of COMMENT_SERVICE_URLS) {
+        try {
+            await axios.patch(`${baseUrl}/api/comments/${commentId}/likes`, { likeCount });
+            console.log(`✅ Updated like count for comment ${commentId}: ${likeCount}`);
+            return;
+        } catch (err) {
+            console.error(`❌ Failed to update comment likes at ${baseUrl}:`, err.message);
+        }
+    }
+    console.warn(`⚠️  Could not update like count for comment ${commentId}`);
+}
 
 class LikeService {
     async toggleLike(commentId, userId) {
@@ -10,19 +31,27 @@ class LikeService {
                 // Unlike - remove the like
                 await Like.deleteOne({ commentId, userId });
                 const count = await this.getLikeCount(commentId);
+                
+                // Update like count in comment-service
+                await updateCommentLikeCount(commentId, count);
+                
                 return {
                     liked: false,
                     message: 'Comment unliked successfully',
-                    likeCount: count
+                    likes: count
                 };
             } else {
                 // Like - add the like
                 await Like.create({ commentId, userId });
                 const count = await this.getLikeCount(commentId);
+                
+                // Update like count in comment-service
+                await updateCommentLikeCount(commentId, count);
+                
                 return {
                     liked: true,
                     message: 'Comment liked successfully',
-                    likeCount: count
+                    likes: count
                 };
             }
         } catch (error) {

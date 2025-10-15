@@ -115,6 +115,22 @@ class CommentController {
             res.status(500).json({ error: error.message });
         }
     }
+
+    async updateLikeCount(req, res) {
+        try {
+            const { commentId } = req.params;
+            const { likeCount } = req.body;
+
+            if (likeCount === undefined) {
+                return res.status(400).json({ error: 'likeCount is required' });
+            }
+
+            const comment = await commentService.updateLikeCount(commentId, likeCount);
+            res.json(comment);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    }
 }
 
 module.exports = new CommentController();

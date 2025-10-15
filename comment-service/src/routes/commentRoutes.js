@@ -22,4 +22,7 @@ router.put('/:commentId', commentController.updateComment);
 // Delete a comment
 router.delete('/:commentId', commentController.deleteComment);
 
+// Update like count (called by like-service)
+router.patch('/:commentId/likes', commentController.updateLikeCount);
+
 module.exports = router;

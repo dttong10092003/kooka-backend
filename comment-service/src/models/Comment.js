@@ -32,6 +32,10 @@ const commentSchema = new mongoose.Schema({
         trim: true,
         maxlength: 1000
     },
+    likes: {
+        type: Number,
+        default: 0
+    },
     parentCommentId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Comment',
@@ -47,5 +51,6 @@ const commentSchema = new mongoose.Schema({
 
 // Index for faster queries
 commentSchema.index({ recipeId: 1, createdAt: -1 });
+commentSchema.index({ parentCommentId: 1 }); // Index for nested replies query
 
 module.exports = mongoose.model('Comment', commentSchema);
