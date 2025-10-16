@@ -1,20 +1,20 @@
-const userService = require("../services/userService")
+const userService = require("../services/userService");
 
 // Tạo profile mới
 exports.createProfile = async (req, res) => {
   try {
-    const { userId, firstName, lastName } = req.body
+    const { userId, firstName, lastName } = req.body;
 
     // Check nếu profile đã tồn tại
-    const existing = await userService.getProfileByUserId(userId)
+    const existing = await userService.getProfileByUserId(userId);
     if (existing) {
-      return res.status(400).json({ message: "Profile already exists" })
+      return res.status(400).json({ message: "Profile already exists" });
     }
 
-    const profile = await userService.createProfile(req.body)
-    res.status(201).json(profile)
+    const profile = await userService.createProfile(req.body);
+    res.status(201).json(profile);
   } catch (err) {
-    res.status(500).json({ message: err.message })
+    res.status(500).json({ message: err.message });
   }
 }
 
