@@ -57,11 +57,32 @@ async function createRecipe(data) {
 }
 
 async function updateRecipe(id, data) {
-  return await Recipe.findByIdAndUpdate(id, data, { new: true })
+  // Upload ảnh chính nếu là base64
+  if (data.image) {
+    data.image = await uploadIfBase64(data.image, "recipes");
+  }
+
+  // Upload video nếu là base64
+  if (data.video) {
+    data.video = await uploadIfBase64(data.video, "recipes");
+  }
+
+  // Upload ảnh trong từng bước nếu là base64
+  if (Array.isArray(data.instructions)) {
+    for (let i = 0; i < data.instructions.length; i++) {
+      const step = data.instructions[i];
+      step.image = await uploadIfBase64(step.image, "recipes/steps");
+    }
+  }
+
+  // Cập nhật recipe
+  const updatedRecipe = await Recipe.findByIdAndUpdate(id, data, { new: true })
     .populate("ingredients", "name")
     .populate("tags", "name")
     .populate("cuisine", "name")
     .populate("category", "name");
+
+  return updatedRecipe;
 }
 
 async function deleteRecipe(id) {
