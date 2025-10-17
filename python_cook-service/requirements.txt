@@ -6,5 +6,6 @@ pymongo
 unidecode
 pydantic
 pydantic-settings
+apscheduler
 torch
 torchvision

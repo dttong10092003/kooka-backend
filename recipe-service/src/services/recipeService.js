@@ -1,6 +1,21 @@
 const Recipe = require("../models/Recipe");
 const { uploadToCloudinary } = require("../utils/cloudinary");
 const { parseBase64 } = require("../utils/parseBase64");
+const axios = require("axios");
+
+const PYTHON_COOK_SERVICE_URL = process.env.PYTHON_COOK_SERVICE_URL;
+
+async function notifySearchService() {
+  try {
+    const endpoint = `${PYTHON_COOK_SERVICE_URL}/api/reindex`;
+    await axios.post(endpoint);
+    console.log(
+      `[Notify] ✅ Triggered AI service reindex successfully at ${endpoint}`
+    );
+  } catch (err) {
+    console.error("[Notify] ❌ Failed to trigger reindex:", err.message);
+  }
+}
 
 // Tất cả logic DB sẽ nằm ở đây
 async function getAllRecipes() {
@@ -53,7 +68,12 @@ async function createRecipe(data) {
   }
 
   const recipe = new Recipe(data);
-  return await recipe.save();
+  const saved = await recipe.save();
+
+  // Thông báo cho dịch vụ tìm kiếm để cập nhật chỉ mục
+  await notifySearchService();
+
+  return saved;
 }
 
 async function updateRecipe(id, data) {
@@ -82,11 +102,18 @@ async function updateRecipe(id, data) {
     .populate("cuisine", "name")
     .populate("category", "name");
 
+  // Thông báo cho dịch vụ tìm kiếm để cập nhật chỉ mục
+  await notifySearchService();
+
   return updatedRecipe;
 }
 
 async function deleteRecipe(id) {
-  return await Recipe.findByIdAndDelete(id);
+  const deleted = await Recipe.findByIdAndDelete(id);
+
+  // Thông báo cho dịch vụ tìm kiếm để cập nhật chỉ mục
+  await notifySearchService();
+  return deleted;
 }
 
 module.exports = {

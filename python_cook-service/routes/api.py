@@ -5,6 +5,7 @@ from data.db import collection, embed_model
 from unidecode import unidecode
 from typing import List
 import math
+from data.indexing import sync_recipes_to_chroma
 
 router = APIRouter()
 
@@ -194,3 +195,8 @@ def search_by_keyword(req: KeywordSearchRequest):
     except Exception as e:
         print(f"[Debug] Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    
+@router.post("/reindex")
+async def reindex_data():
+    sync_recipes_to_chroma()
+    return {"message": "Reindex completed"}
