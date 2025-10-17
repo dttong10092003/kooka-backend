@@ -31,7 +31,7 @@ const app = express();
 
 // ====== CORS CONFIG ======
 app.use(cors({
-  origin: "http://localhost:5173", // cho phép frontend React
+  origin: ["http://localhost:4000", "https://kooka-web.vercel.app"],
   methods: ["GET", "POST", "PUT", "DELETE"],
   allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true, // nếu bạn dùng cookie/session
