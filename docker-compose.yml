@@ -1,0 +1,218 @@
+version: "3.8"
+
+# services:
+#   # MongoDB Service
+#   mongo:
+#     image: mongo:6
+#     container_name: mongo
+#     restart: always
+#     ports:
+#       - "27017:27017"
+#     volumes:
+#       - mongo-data:/data/db
+
+#   # Auth Service
+#   auth-service:
+#     build: ./auth-service
+#     container_name: auth-service
+#     restart: always
+#     ports:
+#       - "5001:5001"
+#     environment:
+#       - PORT=5001
+#       - MONGO_URI=${MONGO_URI}
+#       - JWT_SECRET=${JWT_SECRET}
+#       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+#       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+#     depends_on:
+#       - mongo
+
+#   # User Service
+#   user-service:
+#     build: ./user-service
+#     container_name: user-service
+#     restart: always
+#     ports:
+#       - "5002:5002"
+#     environment:
+#       - PORT=5002
+#       - MONGO_URI=${MONGO_URI_USER}
+#     depends_on:
+#       - mongo
+
+#   # Recipe Search Service (FastAPI)
+#   python_cook-service:
+#     build:
+#       context: ./python_cook-service
+#       dockerfile: Dockerfile
+#     ports:
+#       - "8000:8000"
+#     environment:
+#       - PORT=8000
+#       - MONGODB_URI=${MONGODB_URI}
+#     restart: unless-stopped
+#     depends_on:
+#       - mongo
+
+#   # Recipe CRUD Service (Node.js)
+#   recipe-service:
+#     build:
+#       context: ./recipe-service
+#       dockerfile: Dockerfile
+#     ports:
+#       - "5000:5000"
+#     environment:
+#       - PORT=5000
+#       - MONGODB_URI=${MONGODB_URI}
+#     restart: unless-stopped
+#     depends_on:
+#       - mongo
+
+# volumes:
+#   mongo-data:
+
+
+services:
+  # MongoDB Service
+  mongo:
+    image: mongo:6
+    container_name: mongo
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  # Auth Service
+  auth-service:
+    build: ./auth-service
+    container_name: auth-service
+    restart: always
+    ports:
+      - "5001:5001"
+    environment:
+      - PORT=5001
+      - MONGO_URI=${MONGO_URI}
+      - JWT_SECRET=${JWT_SECRET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+    depends_on:
+      - mongo
+
+  # User Service
+  user-service:
+    build: ./user-service
+    container_name: user-service
+    restart: always
+    ports:
+      - "5002:5002"
+    environment:
+      - PORT=5002
+      - MONGO_URI_USER=${MONGO_URI_USER}
+    depends_on:
+      - mongo
+
+  # Recipe CRUD Service (Node.js)
+  recipe-service:
+    build:
+      context: ./recipe-service
+      dockerfile: Dockerfile
+    container_name: recipe-service
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - MONGODB_URI=${MONGODB_URI}
+      - CLOUDINARY_URL=cloudinary://725489854714717:FWkFjsjCpKtmrpzTCe8S-13cuf8@dh9otw5el
+      - PYTHON_COOK_SERVICE_URL=http://python_cook-service:8000
+    depends_on:
+      - mongo
+
+  # Recipe Search Service (FastAPI)
+  python_cook-service:
+    build:
+      context: ./python_cook-service
+      dockerfile: Dockerfile
+    container_name: python_cook-service
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - MONGODB_URI=${MONGODB_URI}
+    depends_on:
+      - mongo
+  # Comment Service
+  comment-service:
+    build:
+      context: ./comment-service
+      dockerfile: Dockerfile
+    container_name: comment-service
+    restart: unless-stopped
+    ports:
+      - "5004:5004"
+    environment:
+      - PORT=5004
+      - MONGODB_URI=mongodb+srv://kookacmt:kookacmt@kookacmt.eht7alz.mongodb.net/?retryWrites=true&w=majority&appName=KookaCmt
+      - JWT_SECRET=${JWT_SECRET}
+
+  # Like Service
+  like-service:
+    build:
+      context: ./like-service
+      dockerfile: Dockerfile
+    container_name: like-service
+    restart: unless-stopped
+    ports:
+      - "5005:5005"
+    environment:
+      - PORT=5005
+      - MONGODB_URI=mongodb+srv://kookacmt:kookacmt@kookacmt.eht7alz.mongodb.net/?retryWrites=true&w=majority&appName=KookaCmt
+      - JWT_SECRET=${JWT_SECRET}
+
+  # Favorite Service
+  favorite-service:
+    build:
+      context: ./favorite-service
+      dockerfile: Dockerfile
+    container_name: favorite-service
+    restart: unless-stopped
+    ports:
+      - "5006:5006"
+    environment:
+      - PORT=5006
+      - MONGODB_URI=mongodb+srv://kookafavorite:kookafavorite@kookafavorite.mkvgsst.mongodb.net/?retryWrites=true&w=majority&appName=KookaFavorite
+      - JWT_SECRET=${JWT_SECRET}
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - AUTH_SERVICE_URL=http://auth-service:5001
+      - USER_SERVICE_URL=http://user-service:5002
+      - RECIPE_SERVICE_URL=http://recipe-service:5000
+      - PYTHON_COOK_SERVICE_URL=http://python_cook-service:8000
+      - COMMENT_SERVICE_URL=http://comment-service:5004
+      - LIKE_SERVICE_URL=http://like-service:5005
+      - FAVORITE_SERVICE_URL=http://favorite-service:5006
+      - JWT_SECRET=${JWT_SECRET}
+      - NODE_ENV=production
+    restart: unless-stopped
+    depends_on:
+      - auth-service
+      - user-service
+      - recipe-service
+      - python_cook-service
+      - comment-service
+      - like-service
+      - favorite-service
+
+volumes:
+  mongo-data:
