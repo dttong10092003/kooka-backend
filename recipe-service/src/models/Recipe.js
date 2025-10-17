@@ -2,7 +2,16 @@ const mongoose = require("mongoose");
 
 const InstructionSchema = new mongoose.Schema({
   title: String,
-  image: String,
+  images: {
+    type: [String],
+    validate: {
+      validator: function (arr) {
+        return !arr || arr.length <= 4;
+      },
+      message: "Mỗi bước hướng dẫn chỉ được chứa tối đa 4 ảnh.",
+    },
+    default: [],
+  },
   subTitle: [String],
 });
 
