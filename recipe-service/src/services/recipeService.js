@@ -142,10 +142,22 @@ async function deleteRecipe(id) {
   return deleted;
 }
 
+async function updateRecipeRating(id, rate, numberOfRate) {
+  return await Recipe.findByIdAndUpdate(
+    id,
+    { 
+      rate: Number(rate),
+      numberOfRate: Number(numberOfRate)
+    },
+    { new: true }
+  );
+}
+
 module.exports = {
   getAllRecipes,
   getRecipeById,
   createRecipe,
   updateRecipe,
   deleteRecipe,
+  updateRecipeRating,
 };

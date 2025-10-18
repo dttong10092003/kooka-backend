@@ -15,14 +15,37 @@ const cuisineRoutes = require('./routes/cuisineRoute');
 const commentRoutes = require('./routes/commentRoute');
 const likeRoutes = require('./routes/likeRoute');
 const favoriteRoutes = require('./routes/favoriteRoute');
+const reviewRoutes = require('./routes/reviewRoute');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Basic CORS
+// CORS Configuration
+const allowedOrigins = [
+  'http://localhost:4000',  // Frontend URL
+  'http://localhost:5173',  // Vite dev server (backup)
+  'http://localhost:3000',  // Alternative port
+  process.env.FRONTEND_URL  // Production URL from env
+].filter(Boolean);
+
 app.use(cors({
-  origin: true,
-  credentials: true
+  origin: function (origin, callback) {
+    // Allow requests with no origin (Postman, mobile apps, etc.)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      // In development, log warning but allow
+      console.warn(`⚠️  CORS: Origin ${origin} not in whitelist`);
+      callback(null, true); // Allow in dev, change to callback(new Error('Not allowed by CORS')) in production
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  maxAge: 86400
 }));
 
 // Rate limiting
@@ -51,6 +74,7 @@ app.use('/api/cuisines', cuisineRoutes);
 app.use('/api/comments', commentRoutes);
 app.use('/api/likes', likeRoutes);
 app.use('/api/favorites', favoriteRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

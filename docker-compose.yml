@@ -155,6 +155,7 @@ services:
     environment:
       - PORT=5004
       - MONGODB_URI=mongodb+srv://kookacmt:kookacmt@kookacmt.eht7alz.mongodb.net/?retryWrites=true&w=majority&appName=KookaCmt
+      - REVIEW_SERVICE_URL=http://review-service:5007
       - JWT_SECRET=${JWT_SECRET}
 
   # Like Service
@@ -185,6 +186,21 @@ services:
       - MONGODB_URI=mongodb+srv://kookafavorite:kookafavorite@kookafavorite.mkvgsst.mongodb.net/?retryWrites=true&w=majority&appName=KookaFavorite
       - JWT_SECRET=${JWT_SECRET}
 
+  # Review Service
+  review-service:
+    build:
+      context: ./review-service
+      dockerfile: Dockerfile
+    container_name: review-service
+    restart: unless-stopped
+    ports:
+      - "5007:5007"
+    environment:
+      - PORT=5007
+      - MONGODB_URI=mongodb+srv://kookacmt:kookacmt@kookacmt.eht7alz.mongodb.net/?retryWrites=true&w=majority&appName=KookaCmt
+      - RECIPE_SERVICE_URL=http://recipe-service:5000
+      - JWT_SECRET=${JWT_SECRET}
+
   # API Gateway
   api-gateway:
     build:
@@ -202,6 +218,7 @@ services:
       - COMMENT_SERVICE_URL=http://comment-service:5004
       - LIKE_SERVICE_URL=http://like-service:5005
       - FAVORITE_SERVICE_URL=http://favorite-service:5006
+      - REVIEW_SERVICE_URL=http://review-service:5007
       - JWT_SECRET=${JWT_SECRET}
       - NODE_ENV=production
     restart: unless-stopped
@@ -213,6 +230,7 @@ services:
       - comment-service
       - like-service
       - favorite-service
+      - review-service
 
 volumes:
   mongo-data:

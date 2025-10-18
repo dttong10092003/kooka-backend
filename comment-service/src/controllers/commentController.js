@@ -4,7 +4,7 @@ const { getUserInfo } = require('../utils/externalServices');
 class CommentController {
     async createComment(req, res) {
         try {
-            const { recipeId, content, parentCommentId } = req.body;
+            const { recipeId, content, parentCommentId, rating } = req.body;
             
             // Get user ID from headers (set by API Gateway)
             const userId = req.headers['x-user-id'];
@@ -21,6 +21,20 @@ class CommentController {
                 });
             }
 
+            // Nếu là parent comment (không có parentCommentId), phải có rating
+            if (!parentCommentId && !rating) {
+                return res.status(400).json({ 
+                    error: 'Rating is required for parent comments' 
+                });
+            }
+
+            // Nếu có rating, validate
+            if (rating && (rating < 1 || rating > 5)) {
+                return res.status(400).json({ 
+                    error: 'Rating must be between 1 and 5' 
+                });
+            }
+
             // Fetch username, firstName, lastName, and avatar from external services
             const userInfo = await getUserInfo(userId);
 
@@ -32,7 +46,8 @@ class CommentController {
                 lastName: userInfo.lastName,
                 userAvatar: userInfo.avatar,
                 content,
-                parentCommentId: parentCommentId || null
+                parentCommentId: parentCommentId || null,
+                ratingRecipe: rating ? Number(rating) : null
             };
 
             const comment = await commentService.createComment(commentData);

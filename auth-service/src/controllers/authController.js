@@ -116,11 +116,11 @@ exports.googleLogin = async (req, res) => {
                 window.opener.postMessage({
                     type: 'GOOGLE_AUTH_SUCCESS',
                     payload: data
-                }, "http://localhost:5173");
+                }, "http://localhost:4000");
                 window.close();
             } else {
                 // Fallback: redirect to frontend with token in URL
-                window.location.href = "http://localhost:5173/auth/google/callback?token=${token}";
+                window.location.href = "http://localhost:4000/auth/google/callback?token=${token}";
             }
         </script>
     </body>
@@ -141,10 +141,10 @@ exports.googleLogin = async (req, res) => {
                 window.opener.postMessage({
                     type: 'GOOGLE_AUTH_ERROR',
                     error: "${err.message}"
-                }, "http://localhost:5173");
+                }, "http://localhost:4000");
                 window.close();
             } else {
-                window.location.href = "http://localhost:5173/login?error=google_auth_failed";
+                window.location.href = "http://localhost:4000/login?error=google_auth_failed";
             }
         </script>
     </body>

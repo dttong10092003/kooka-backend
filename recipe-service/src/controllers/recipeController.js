@@ -47,3 +47,29 @@ exports.deleteRecipe = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+exports.updateRecipeRating = async (req, res) => {
+  try {
+    const { rate, numberOfRate } = req.body;
+    
+    if (rate === undefined || numberOfRate === undefined) {
+      return res.status(400).json({ 
+        error: 'rate and numberOfRate are required' 
+      });
+    }
+
+    const recipe = await recipeService.updateRecipeRating(
+      req.params.id, 
+      rate, 
+      numberOfRate
+    );
+    
+    if (!recipe) {
+      return res.status(404).json({ message: "Recipe not found" });
+    }
+    
+    res.json(recipe);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
