@@ -1,0 +1,30 @@
+{
+  "name": "chatbot-service",
+  "version": "1.0.0",
+  "description": "AI Chatbot Service using Gemini API",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "node test-chatbot.js"
+  },
+  "keywords": [
+    "chatbot",
+    "gemini",
+    "ai",
+    "recipe"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "axios": "^1.7.9",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.1",
+    "mongoose": "^8.8.4"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  }
+}

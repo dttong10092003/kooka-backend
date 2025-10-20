@@ -187,6 +187,28 @@ services:
       - RECIPE_SERVICE_URL=http://recipe-service:5000
       - JWT_SECRET=${JWT_SECRET}
 
+  # Chatbot Service (AI Assistant with Gemini)
+  chatbot-service:
+    build:
+      context: ./chatbot-service
+      dockerfile: Dockerfile
+    container_name: chatbot-service
+    restart: unless-stopped
+    ports:
+      - "5008:5008"
+    environment:
+      - PORT=5008
+      - GEMINI_API_KEY=AIzaSyCwQQJoEwPXwcnaV_ItQwf1Ere5bvQ7-8g
+      - RECIPE_SERVICE_URL=http://recipe-service:5000
+      - USER_SERVICE_URL=http://user-service:5002
+      - REVIEW_SERVICE_URL=http://review-service:5007
+      - PYTHON_COOK_SERVICE_URL=http://python_cook-service:8000
+      - MONGODB_URI=mongodb+srv://kookachatbot:kookachatbot@kookachatbot.zbekhrk.mongodb.net/?retryWrites=true&w=majority&appName=KookaChatbot
+    depends_on:
+      - mongo
+      - recipe-service
+      - review-service
+
   # API Gateway
   api-gateway:
     build:
@@ -204,6 +226,7 @@ services:
       - LIKE_SERVICE_URL=http://like-service:5005
       - FAVORITE_SERVICE_URL=http://favorite-service:5006
       - REVIEW_SERVICE_URL=http://review-service:5007
+      - CHATBOT_SERVICE_URL=http://chatbot-service:5008
       - JWT_SECRET=${JWT_SECRET}
       - NODE_ENV=production
     restart: unless-stopped
@@ -215,6 +238,7 @@ services:
       - like-service
       - favorite-service
       - review-service
+      - chatbot-service
 
 volumes:
   mongo-data:
