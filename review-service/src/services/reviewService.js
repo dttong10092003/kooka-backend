@@ -2,7 +2,8 @@ const Review = require('../models/Review');
 const axios = require('axios');
 
 class ReviewService {
-    async createReview(reviewData) {
+    // Internal method for creating review (called from commentService)
+    async createReviewInternal(reviewData) {
         // Kiểm tra user đã review recipe này chưa
         const existingReview = await Review.findOne({
             userId: reviewData.userId,
@@ -23,6 +24,10 @@ class ReviewService {
         return review;
     }
 
+    async createReview(reviewData) {
+        return await this.createReviewInternal(reviewData);
+    }
+
     async updateReview(commentId, userId, newRating) {
         const review = await Review.findOne({ commentId, userId });
         
@@ -39,7 +44,8 @@ class ReviewService {
         return review;
     }
 
-    async deleteReview(commentId, userId) {
+    // Internal method for deleting review (called from commentService)
+    async deleteReviewInternal(commentId, userId) {
         const review = await Review.findOne({ commentId, userId });
         
         if (!review) {
@@ -53,6 +59,10 @@ class ReviewService {
         await this.updateRecipeRating(recipeId);
 
         return { message: 'Review deleted successfully' };
+    }
+
+    async deleteReview(commentId, userId) {
+        return await this.deleteReviewInternal(commentId, userId);
     }
 
     async getReviewByComment(commentId) {

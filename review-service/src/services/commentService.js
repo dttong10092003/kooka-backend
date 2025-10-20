@@ -1,5 +1,5 @@
 const Comment = require('../models/Comment');
-const { createReview, deleteReview } = require('../utils/reviewService');
+const reviewService = require('./reviewService');
 
 class CommentService {
     async createComment(commentData) {
@@ -31,12 +31,12 @@ class CommentService {
         // Nếu là parent comment (có rating), tạo review
         if (savedComment.ratingRecipe && !savedComment.parentCommentId) {
             try {
-                await createReview(
-                    savedComment.recipeId,
-                    savedComment.userId,
-                    savedComment._id.toString(),
-                    savedComment.ratingRecipe
-                );
+                await reviewService.createReviewInternal({
+                    recipeId: savedComment.recipeId,
+                    userId: savedComment.userId,
+                    commentId: savedComment._id.toString(),
+                    rating: savedComment.ratingRecipe
+                });
             } catch (error) {
                 // Rollback: xóa comment nếu tạo review thất bại
                 await Comment.deleteOne({ _id: savedComment._id });
@@ -124,7 +124,7 @@ class CommentService {
         // Nếu là parent comment có rating, xóa review trước
         if (comment.ratingRecipe && !comment.parentCommentId) {
             try {
-                await deleteReview(commentId, userId);  // Truyền userId
+                await reviewService.deleteReviewInternal(commentId, userId);
             } catch (error) {
                 console.error('Failed to delete review:', error.message);
                 // Tiếp tục xóa comment ngay cả khi xóa review thất bại
