@@ -19,7 +19,7 @@ app.use(express.json());
 // Routes
 app.use("/api/mealplans", mealPlanRoutes);
 
-const PORT = process.env.PORT || 5008;
+const PORT = process.env.PORT || 5009;
 
 (async () => {
   try {

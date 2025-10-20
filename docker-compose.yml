@@ -129,6 +129,20 @@ services:
     depends_on:
       - mongo
 
+  mealplan-service:
+    build:
+      context: ./mealplan-service
+      dockerfile: Dockerfile
+    container_name: mealplan-service
+    restart: unless-stopped
+    ports:
+      - "5009:5009"
+    environment:
+      - PORT=5009
+      - MONGODB_URI=${MONGODB_URI}
+    depends_on:
+      - mongo
+
   # Recipe Search Service (FastAPI)
   python_cook-service:
     build:
@@ -227,6 +241,7 @@ services:
       - FAVORITE_SERVICE_URL=http://favorite-service:5006
       - REVIEW_SERVICE_URL=http://review-service:5007
       - CHATBOT_SERVICE_URL=http://chatbot-service:5008
+      - MEALPLAN_SERVICE_URL=http://mealplan-service:5009
       - JWT_SECRET=${JWT_SECRET}
       - NODE_ENV=production
     restart: unless-stopped
@@ -239,6 +254,7 @@ services:
       - favorite-service
       - review-service
       - chatbot-service
+      - mealplan-service
 
 volumes:
   mongo-data:

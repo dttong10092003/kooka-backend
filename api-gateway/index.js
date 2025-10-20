@@ -17,6 +17,7 @@ const likeRoutes = require('./routes/likeRoute');
 const favoriteRoutes = require('./routes/favoriteRoute');
 const reviewRoutes = require('./routes/reviewRoute');
 const chatbotRoutes = require('./routes/chatbotRoute');
+const mealPlanRoutes = require('./routes/mealPlanRoute');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -77,6 +78,7 @@ app.use('/api/likes', likeRoutes);
 app.use('/api/favorites', favoriteRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/chatbot', chatbotRoutes);
+app.use('/api/mealplans', mealPlanRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

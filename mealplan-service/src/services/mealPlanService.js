@@ -1,5 +1,7 @@
 const MealPlan = require("../models/MealPlan");
 const dayjs = require("dayjs");
+const minMax = require("dayjs/plugin/minMax");
+dayjs.extend(minMax);
 
 // Tạo mealplan mới
 const createMealPlan = async (data) => {
@@ -55,7 +57,7 @@ const createMealPlan = async (data) => {
 
 // Lấy tất cả mealplan của 1 user
 const getMealPlansByUser = async (userId) => {
-  return await MealPlan.find({ userId }).sort({ createdAt: -1 });
+  return await MealPlan.find({ userId }).sort({ startDate: 1 });
 };
 
 // Cập nhật 1 mealplan (ví dụ thay đổi món hoặc ngày)
