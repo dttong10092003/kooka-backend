@@ -15,29 +15,56 @@ Phân tích ý định của người dùng và trích xuất thông tin từ c�
 
 Trả về JSON với format sau (chỉ trả JSON, không có text khác):
 {
-  "intent": "search_recipe | get_recipe_details | list_recipes | get_ingredients | get_categories | get_cuisines | recommend_recipe | get_reviews | general_question",
+  "intent": "search_recipe | get_recipe_details | list_recipes | get_ingredients | get_categories | get_cuisines | recommend_recipe | get_reviews | search_by_difficulty | search_by_criteria | general_question",
   "entities": {
     "recipeName": "tên món ăn nếu có",
     "ingredients": ["danh sách nguyên liệu nếu có"],
     "category": "danh mục nếu có",
-    "cuisine": "ẩm thực nếu có",
+    "cuisine": "tên quốc gia/ẩm thực nếu có (VD: Việt Nam, Nhật Bản, Hàn Quốc, Ý, Pháp...)",
+    "difficulty": "Dễ | Trung bình | Khó (nếu người dùng hỏi về độ khó)",
+    "maxTime": "thời gian tối đa (số phút) nếu có",
+    "minTime": "thời gian tối thiểu (số phút) nếu có",
+    "maxCalories": "calo tối đa nếu có",
+    "minCalories": "calo tối thiểu nếu có",
+    "size": "số người ăn nếu có",
     "recipeId": "ID công thức nếu có"
   },
   "needsData": true/false
 }
+
+Hướng dẫn phân tích:
+- Intent "search_by_difficulty": khi chỉ hỏi về độ khó đơn thuần (món dễ, món khó)
+- Intent "search_by_criteria": khi hỏi về thời gian, calo, nguyên liệu, quốc gia, size, hoặc kết hợp nhiều tiêu chí
+- Intent "recommend_recipe": khi hỏi gợi ý món ăn theo tiêu chí (món Việt Nam, món Ý...) HOẶC gợi ý chung chung
+- Intent "get_cuisines": khi hỏi "có những quốc gia nào", "các món ăn của nước nào"
+- Intent "search_recipe": khi tìm kiếm món ăn cụ thể theo tên
+
+Ví dụ:
+- "Món nào nấu nhanh dưới 30 phút?" -> search_by_criteria, maxTime: 30
+- "Món ăn ít calo" -> search_by_criteria, maxCalories: 300
+- "Món Việt Nam" -> recommend_recipe, cuisine: "Việt Nam"
+- "Món Ý" -> recommend_recipe, cuisine: "Ý"
+- "Món bữa sáng" -> recommend_recipe, category: "Bữa sáng"
+- "Món tráng miệng" -> recommend_recipe, category: "Tráng miệng"
+- "Món có gà" -> search_by_criteria, ingredients: ["gà"]
+- "Món cho 4 người" -> search_by_criteria, size: 4
+- "Món Ý dễ làm dưới 45 phút" -> recommend_recipe, cuisine: "Ý", difficulty: "Dễ", maxTime: 45
+- "Món bữa sáng dễ làm" -> recommend_recipe, category: "Bữa sáng", difficulty: "Dễ"
+- "Món dễ nấu" -> search_by_difficulty, difficulty: "Dễ"
+- "Gợi ý món ăn" -> recommend_recipe (không có tiêu chí cụ thể)
 `;
 
     try {
       const result = await this.model.generateContent(intentPrompt);
       const response = await result.response;
       const text = response.text();
-      
+
       // Extract JSON from response
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         return JSON.parse(jsonMatch[0]);
       }
-      
+
       return { intent: 'general_question', entities: {}, needsData: false };
     } catch (error) {
       console.error('Error analyzing intent:', error);
@@ -84,16 +111,73 @@ Trả về JSON với format sau (chỉ trả JSON, không có text khác):
           break;
 
         case 'recommend_recipe':
-          data.popularRecipes = await dataFetchService.getPopularRecipes(10);
-          if (entities.category) {
-            const searchResult = await dataFetchService.advancedSearch({ category: entities.category });
-            data.categoryRecipes = searchResult;
+          // Check if there are specific criteria (cuisine, category, etc.)
+          const hasSpecificCriteria = entities.cuisine || entities.category ||
+            entities.difficulty || entities.maxTime ||
+            entities.ingredients?.length > 0;
+
+          if (hasSpecificCriteria) {
+            // Use filter-based search instead of just popular recipes
+            const filters = {};
+
+            if (entities.cuisine) filters.cuisine = entities.cuisine;
+            if (entities.category) filters.category = entities.category;
+            if (entities.difficulty) filters.difficulty = entities.difficulty;
+            if (entities.maxTime) filters.maxTime = parseInt(entities.maxTime);
+            if (entities.minTime) filters.minTime = parseInt(entities.minTime);
+            if (entities.maxCalories) filters.maxCalories = parseInt(entities.maxCalories);
+            if (entities.minCalories) filters.minCalories = parseInt(entities.minCalories);
+            if (entities.size) filters.size = parseInt(entities.size);
+            if (entities.ingredients && entities.ingredients.length > 0) {
+              filters.ingredients = entities.ingredients;
+            }
+
+            const criteriaResult = await dataFetchService.getRecipesByFilters(filters, 20);
+            if (criteriaResult) {
+              data.recipes = criteriaResult.recipes;
+              data.filters = filters;
+            }
+          } else {
+            // No specific criteria, just get popular recipes
+            data.popularRecipes = await dataFetchService.getPopularRecipes(10);
           }
           break;
 
         case 'get_reviews':
           if (entities.recipeId) {
             data.reviews = await dataFetchService.getReviewsByRecipeId(entities.recipeId);
+          }
+          break;
+
+        case 'search_by_difficulty':
+          if (entities.difficulty) {
+            const difficultyResult = await dataFetchService.getRecipesByDifficulty(entities.difficulty, 20);
+            if (difficultyResult) {
+              data.recipes = difficultyResult.recipes;
+            }
+          }
+          break;
+
+        case 'search_by_criteria':
+          // Build filters object from entities
+          const filters = {};
+
+          if (entities.cuisine) filters.cuisine = entities.cuisine;
+          if (entities.difficulty) filters.difficulty = entities.difficulty;
+          if (entities.maxTime) filters.maxTime = parseInt(entities.maxTime);
+          if (entities.minTime) filters.minTime = parseInt(entities.minTime);
+          if (entities.maxCalories) filters.maxCalories = parseInt(entities.maxCalories);
+          if (entities.minCalories) filters.minCalories = parseInt(entities.minCalories);
+          if (entities.size) filters.size = parseInt(entities.size);
+          if (entities.ingredients && entities.ingredients.length > 0) {
+            filters.ingredients = entities.ingredients;
+          }
+
+          // Fetch recipes with filters
+          const criteriaResult = await dataFetchService.getRecipesByFilters(filters, 20);
+          if (criteriaResult) {
+            data.recipes = criteriaResult.recipes;
+            data.filters = filters; // Include filters in response for debugging
           }
           break;
 
@@ -129,22 +213,32 @@ Hãy trả lời một cách thân thiện, nhiệt tình và NGẮN GỌN (tố
     // Add relevant data if available (summarize if too long)
     if (Object.keys(relevantData).length > 0) {
       contextPrompt += '\n### Dữ liệu liên quan:\n';
-      
+
       // Summarize data to avoid token limits
       if (relevantData.recipes && relevantData.recipes.length > 0) {
-        const recipesSummary = relevantData.recipes.slice(0, 5).map(r => ({
+        const recipesSummary = relevantData.recipes.slice(0, 8).map(r => ({
           name: r.name,
           short: r.short,
           difficulty: r.difficulty,
           time: r.time,
+          calories: r.calories,
+          size: r.size,
+          cuisine: r.cuisine?.name || null,
+          category: r.category?.name || null,
           ingredients: r.ingredients?.slice(0, 5).map(i => i.name)
         }));
         contextPrompt += JSON.stringify({ recipes: recipesSummary }, null, 2);
+
+        // Add filter info if available
+        if (relevantData.filters) {
+          contextPrompt += '\n\n### Bộ lọc đã áp dụng:\n';
+          contextPrompt += JSON.stringify(relevantData.filters, null, 2);
+        }
       } else {
         contextPrompt += JSON.stringify(relevantData, null, 2);
       }
-      
-      contextPrompt += '\n\nHãy sử dụng dữ liệu trên để trả lời câu hỏi một cách chính xác.';
+
+      contextPrompt += '\n\nHãy sử dụng dữ liệu trên để trả lời câu hỏi một cách chính xác. Khi giới thiệu món ăn, hãy đề cập đến các thông tin như: thời gian nấu, độ khó, calo, số người ăn (size), quốc gia (cuisine) nếu có.';
     }
 
     contextPrompt += `\n\n### Câu hỏi của người dùng:\n${userMessage}\n\n### Trả lời (NGẮN GỌN):`;
@@ -155,13 +249,13 @@ Hãy trả lời một cách thân thiện, nhiệt tình và NGẮN GỌN (tố
       return response.text();
     } catch (error) {
       console.error('Error generating response:', error);
-      
+
       // Fallback response based on intent
       if (relevantData.recipes && relevantData.recipes.length > 0) {
         const recipeNames = relevantData.recipes.map(r => r.name).join(', ');
         return `Tôi tìm thấy ${relevantData.recipes.length} món ăn cho bạn: ${recipeNames}. Bạn muốn biết chi tiết món nào?`;
       }
-      
+
       return 'Xin lỗi, tôi gặp sự cố khi xử lý yêu cầu của bạn. Vui lòng thử lại sau.';
     }
   }

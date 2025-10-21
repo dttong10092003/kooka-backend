@@ -153,6 +153,53 @@ curl -X POST http://localhost:5008/api/chatbot/chat \
   }'
 ```
 
+### Tìm món ăn dễ nấu
+```bash
+curl -X POST http://localhost:5008/api/chatbot/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Các món nào dễ nấu?",
+    "sessionId": "session_004"
+  }'
+```
+
+### Tìm món theo danh mục
+```bash
+curl -X POST http://localhost:5008/api/chatbot/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Món bữa sáng có gì?",
+    "sessionId": "session_005"
+  }'
+```
+
+### Tìm món theo quốc gia
+```bash
+curl -X POST http://localhost:5008/api/chatbot/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Món Việt Nam",
+    "sessionId": "session_006"
+  }'
+```
+
+### Tìm món kết hợp nhiều tiêu chí
+```bash
+curl -X POST http://localhost:5008/api/chatbot/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Món bữa sáng dễ làm dưới 20 phút",
+    "sessionId": "session_007"
+  }'
+```
+
+## 🧪 Testing
+
+Chạy file test để kiểm tra tính năng tìm món dễ:
+```bash
+node test-easy-recipes.js
+```
+
 ## 🎯 Các loại Intent được hỗ trợ
 
 1. **search_recipe** - Tìm kiếm công thức nấu ăn
@@ -161,9 +208,22 @@ curl -X POST http://localhost:5008/api/chatbot/chat \
 4. **get_ingredients** - Lấy danh sách nguyên liệu
 5. **get_categories** - Lấy danh mục món ăn
 6. **get_cuisines** - Lấy loại ẩm thực
-7. **recommend_recipe** - Gợi ý món ăn
+7. **recommend_recipe** - Gợi ý món ăn (theo cuisine, category, hoặc tổng hợp)
 8. **get_reviews** - Xem đánh giá món ăn
-9. **general_question** - Câu hỏi chung
+9. **search_by_difficulty** - Tìm món ăn theo độ khó (Dễ, Trung bình, Khó)
+10. **search_by_criteria** - Tìm món ăn theo nhiều tiêu chí (time, calories, ingredients, size, etc.)
+11. **general_question** - Câu hỏi chung
+
+## 🔍 Các tiêu chí tìm kiếm được hỗ trợ
+
+- **Độ khó**: Dễ, Trung bình, Khó
+- **Thời gian nấu**: dưới X phút, từ X đến Y phút
+- **Calo**: ít calo (dưới 300), từ X đến Y calo
+- **Quốc gia (Cuisine)**: Việt Nam, Nhật Bản, Hàn Quốc, Ý, Pháp, v.v.
+- **Danh mục (Category)**: Bữa sáng, Bữa tối, Bữa chính, Tráng miệng
+- **Nguyên liệu**: có gà, có thịt bò, có tôm, v.v.
+- **Khẩu phần (Size)**: cho 2 người, cho 4 người, v.v.
+- **Kết hợp nhiều tiêu chí**: Món Việt Nam dễ làm dưới 30 phút cho 4 người
 
 ## 🔗 Kết nối với các Service
 

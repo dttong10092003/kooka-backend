@@ -163,6 +163,168 @@ class DataFetchService {
       return null;
     }
   }
+
+  // Get Recipes by Difficulty
+  async getRecipesByDifficulty(difficulty = 'Dễ', limit = 20) {
+    try {
+      // Get all recipes
+      const response = await axios.get(`${this.recipeServiceUrl}/api/recipes?limit=100`);
+      const recipes = Array.isArray(response.data) ? response.data : (response.data.recipes || []);
+      
+      if (recipes.length > 0) {
+        // Normalize function to handle Vietnamese characters
+        const normalize = (str) => {
+          if (!str) return '';
+          return str.toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
+            .trim();
+        };
+        
+        const normalizedDifficulty = normalize(difficulty);
+        
+        // Filter recipes by difficulty
+        const filtered = recipes.filter(recipe => {
+          if (!recipe.difficulty) return false;
+          const normalizedRecipeDifficulty = normalize(recipe.difficulty);
+          return normalizedRecipeDifficulty === normalizedDifficulty;
+        });
+        
+        console.log(`Difficulty filter: "${difficulty}" -> Found ${filtered.length} recipes`);
+        
+        // Return filtered results (limited)
+        return { recipes: filtered.slice(0, limit) };
+      }
+      return { recipes: [] };
+    } catch (error) {
+      console.error('Error fetching recipes by difficulty:', error.message);
+      return null;
+    }
+  }
+
+  // Get Recipes by Filters (advanced filtering)
+  async getRecipesByFilters(filters = {}, limit = 20) {
+    try {
+      // Get all recipes
+      const response = await axios.get(`${this.recipeServiceUrl}/api/recipes?limit=150`);
+      const recipes = Array.isArray(response.data) ? response.data : (response.data.recipes || []);
+      
+      if (recipes.length === 0) {
+        return { recipes: [] };
+      }
+
+      // Normalize function to handle Vietnamese characters
+      const normalize = (str) => {
+        if (!str) return '';
+        return str.toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .trim();
+      };
+
+      // Filter recipes based on multiple criteria
+      let filtered = recipes.filter(recipe => {
+        let match = true;
+
+        // Filter by cuisine (country)
+        if (filters.cuisine) {
+          if (!recipe.cuisine || !recipe.cuisine.name) {
+            match = false;
+          } else {
+            const normalizedCuisine = normalize(recipe.cuisine.name);
+            const normalizedFilterCuisine = normalize(filters.cuisine);
+            if (!normalizedCuisine.includes(normalizedFilterCuisine)) {
+              match = false;
+            }
+          }
+        }
+
+        // Filter by category
+        if (filters.category) {
+          if (!recipe.category || !recipe.category.name) {
+            match = false;
+          } else {
+            const normalizedCategory = normalize(recipe.category.name);
+            const normalizedFilterCategory = normalize(filters.category);
+            if (!normalizedCategory.includes(normalizedFilterCategory)) {
+              match = false;
+            }
+          }
+        }
+
+        // Filter by time (cooking time)
+        if (filters.maxTime && recipe.time) {
+          if (recipe.time > filters.maxTime) {
+            match = false;
+          }
+        }
+        if (filters.minTime && recipe.time) {
+          if (recipe.time < filters.minTime) {
+            match = false;
+          }
+        }
+
+        // Filter by calories
+        if (filters.maxCalories && recipe.calories) {
+          if (recipe.calories > filters.maxCalories) {
+            match = false;
+          }
+        }
+        if (filters.minCalories && recipe.calories) {
+          if (recipe.calories < filters.minCalories) {
+            match = false;
+          }
+        }
+
+        // Filter by size (serving size)
+        if (filters.size && recipe.size) {
+          if (recipe.size !== filters.size) {
+            match = false;
+          }
+        }
+
+        // Filter by difficulty
+        if (filters.difficulty && recipe.difficulty) {
+          const normalizedDifficulty = normalize(recipe.difficulty);
+          const normalizedFilterDifficulty = normalize(filters.difficulty);
+          if (normalizedDifficulty !== normalizedFilterDifficulty) {
+            match = false;
+          }
+        }
+
+        // Filter by ingredients
+        if (filters.ingredients && filters.ingredients.length > 0) {
+          if (!recipe.ingredients || recipe.ingredients.length === 0) {
+            match = false;
+          } else {
+            const recipeIngredientNames = recipe.ingredients.map(ing => 
+              normalize(ing.name || '')
+            );
+            const hasAllIngredients = filters.ingredients.every(filterIng => {
+              const normalizedFilterIng = normalize(filterIng);
+              return recipeIngredientNames.some(recipeIng => 
+                recipeIng.includes(normalizedFilterIng)
+              );
+            });
+            if (!hasAllIngredients) {
+              match = false;
+            }
+          }
+        }
+
+        return match;
+      });
+
+      console.log(`Filters applied:`, filters);
+      console.log(`Found ${filtered.length} recipes matching criteria`);
+
+      // Return filtered results (limited)
+      return { recipes: filtered.slice(0, limit) };
+    } catch (error) {
+      console.error('Error fetching recipes by filters:', error.message);
+      return null;
+    }
+  }
 }
 
 module.exports = new DataFetchService();
