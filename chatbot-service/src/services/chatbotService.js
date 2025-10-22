@@ -87,10 +87,36 @@ Ví dụ:
           break;
 
         case 'get_recipe_details':
+          // If recipeId is provided, fetch by ID
           if (entities.recipeId) {
             data.recipe = await dataFetchService.getRecipeById(entities.recipeId);
-            data.reviews = await dataFetchService.getReviewsByRecipeId(entities.recipeId);
-            data.comments = await dataFetchService.getCommentsByRecipeId(entities.recipeId);
+            if (data.recipe) {
+              data.reviews = await dataFetchService.getReviewsByRecipeId(entities.recipeId);
+              data.comments = await dataFetchService.getCommentsByRecipeId(entities.recipeId);
+            }
+          } 
+          // If recipeName is provided, search by name first
+          else if (entities.recipeName) {
+            const searchResult = await dataFetchService.searchRecipes(entities.recipeName);
+            
+            // If found recipes, get the first match's details
+            if (searchResult && searchResult.recipes && searchResult.recipes.length > 0) {
+              const matchedRecipe = searchResult.recipes[0];
+              data.recipe = matchedRecipe;
+              
+              // Get reviews and comments for this recipe
+              if (matchedRecipe._id) {
+                data.reviews = await dataFetchService.getReviewsByRecipeId(matchedRecipe._id);
+                data.comments = await dataFetchService.getCommentsByRecipeId(matchedRecipe._id);
+              }
+              
+              console.log(`Found recipe in database: ${matchedRecipe.name}`);
+            } else {
+              // Recipe not found in database
+              console.log(`Recipe "${entities.recipeName}" not found in database`);
+              data.recipeNotFound = true;
+              data.searchedRecipeName = entities.recipeName;
+            }
           }
           break;
 
@@ -214,8 +240,54 @@ Hãy trả lời một cách thân thiện, nhiệt tình và NGẮN GỌN (tố
     if (Object.keys(relevantData).length > 0) {
       contextPrompt += '\n### Dữ liệu liên quan:\n';
 
-      // Summarize data to avoid token limits
-      if (relevantData.recipes && relevantData.recipes.length > 0) {
+      // Handle recipe not found case
+      if (relevantData.recipeNotFound) {
+        contextPrompt += `\nMón "${relevantData.searchedRecipeName}" KHÔNG CÓ trong database của Kooka.\n`;
+        contextPrompt += 'Hãy lịch sự thông báo với người dùng rằng hiện tại ứng dụng chưa có công thức này, ';
+        contextPrompt += 'nhưng bạn có thể chia sẻ một số thông tin chung về món ăn này dựa trên kiến thức của bạn (ngắn gọn).\n';
+      }
+      // Handle single recipe details
+      else if (relevantData.recipe) {
+        const recipe = relevantData.recipe;
+        const recipeDetail = {
+          name: recipe.name,
+          short: recipe.short,
+          difficulty: recipe.difficulty,
+          time: recipe.time,
+          calories: recipe.calories,
+          size: recipe.size,
+          cuisine: recipe.cuisine?.name || null,
+          category: recipe.category?.name || null,
+          ingredients: recipe.ingredients?.map(i => ({
+            name: i.name,
+            quantity: i.quantity || null
+          })) || [],
+          instructions: recipe.instructions?.map((inst, idx) => ({
+            step: idx + 1,
+            title: inst.title,
+            subTitle: inst.subTitle
+          })) || [],
+          video: recipe.video || null,
+          rate: recipe.rate || 0,
+          numberOfRate: recipe.numberOfRate || 0
+        };
+        
+        contextPrompt += JSON.stringify({ recipe: recipeDetail }, null, 2);
+        
+        // Add reviews if available
+        if (relevantData.reviews && relevantData.reviews.length > 0) {
+          contextPrompt += '\n\n### Đánh giá từ người dùng:\n';
+          const reviewsSummary = relevantData.reviews.slice(0, 3).map(r => ({
+            rating: r.rating,
+            comment: r.comment
+          }));
+          contextPrompt += JSON.stringify({ reviews: reviewsSummary }, null, 2);
+        }
+        
+        contextPrompt += '\n\nHãy trình bày CHI TIẾT công thức này một cách đầy đủ, bao gồm: mô tả, nguyên liệu (với số lượng nếu có), các bước làm, thời gian, độ khó, calo, v.v. Trình bày theo format dễ đọc với emoji phù hợp.';
+      }
+      // Handle multiple recipes list
+      else if (relevantData.recipes && relevantData.recipes.length > 0) {
         const recipesSummary = relevantData.recipes.slice(0, 8).map(r => ({
           name: r.name,
           short: r.short,
@@ -225,6 +297,8 @@ Hãy trả lời một cách thân thiện, nhiệt tình và NGẮN GỌN (tố
           size: r.size,
           cuisine: r.cuisine?.name || null,
           category: r.category?.name || null,
+          rating: r.rate || 0,
+          numberOfRatings: r.numberOfRate || 0,
           ingredients: r.ingredients?.slice(0, 5).map(i => i.name)
         }));
         contextPrompt += JSON.stringify({ recipes: recipesSummary }, null, 2);
@@ -234,11 +308,11 @@ Hãy trả lời một cách thân thiện, nhiệt tình và NGẮN GỌN (tố
           contextPrompt += '\n\n### Bộ lọc đã áp dụng:\n';
           contextPrompt += JSON.stringify(relevantData.filters, null, 2);
         }
+        
+        contextPrompt += '\n\nHãy sử dụng dữ liệu trên để trả lời câu hỏi một cách chính xác. Khi giới thiệu món ăn, hãy đề cập đến các thông tin như: thời gian nấu, độ khó, calo, số người ăn (size), quốc gia (cuisine), và đặc biệt là RATING (số sao đánh giá) để người dùng biết món nào được yêu thích. Format rating như: "⭐ 4.5/5 (10 đánh giá)".';
       } else {
         contextPrompt += JSON.stringify(relevantData, null, 2);
       }
-
-      contextPrompt += '\n\nHãy sử dụng dữ liệu trên để trả lời câu hỏi một cách chính xác. Khi giới thiệu món ăn, hãy đề cập đến các thông tin như: thời gian nấu, độ khó, calo, số người ăn (size), quốc gia (cuisine) nếu có.';
     }
 
     contextPrompt += `\n\n### Câu hỏi của người dùng:\n${userMessage}\n\n### Trả lời (NGẮN GỌN):`;
@@ -250,7 +324,15 @@ Hãy trả lời một cách thân thiện, nhiệt tình và NGẮN GỌN (tố
     } catch (error) {
       console.error('Error generating response:', error);
 
-      // Fallback response based on intent
+      // Fallback response based on data
+      if (relevantData.recipeNotFound) {
+        return `Xin lỗi, hiện tại Kooka chưa có công thức cho món "${relevantData.searchedRecipeName}". Bạn có thể tìm kiếm món khác hoặc hỏi tôi về các món ăn phổ biến khác nhé! 😊`;
+      }
+      
+      if (relevantData.recipe) {
+        return `Tôi tìm thấy món ${relevantData.recipe.name}! Đây là một ${relevantData.recipe.short || 'món ăn ngon'}. Bạn muốn biết thêm thông tin gì về món này?`;
+      }
+      
       if (relevantData.recipes && relevantData.recipes.length > 0) {
         const recipeNames = relevantData.recipes.map(r => r.name).join(', ');
         return `Tôi tìm thấy ${relevantData.recipes.length} món ăn cho bạn: ${recipeNames}. Bạn muốn biết chi tiết món nào?`;
