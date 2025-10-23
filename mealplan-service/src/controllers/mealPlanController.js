@@ -3,8 +3,8 @@ const mealPlanService = require("../services/mealPlanService");
 // Tạo mealplan
 exports.createMealPlan = async (req, res) => {
   try {
-    const { userId, plans } = req.body;
-    const mealPlan = await mealPlanService.createMealPlan({ userId, plans });
+    const { userId, plans, startDate } = req.body;
+    const mealPlan = await mealPlanService.createMealPlan({ userId, plans, startDate });
     res.status(201).json(mealPlan);
   } catch (err) {
     res.status(500).json({ message: err.message });
