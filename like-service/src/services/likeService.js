@@ -1,13 +1,13 @@
 const Like = require('../models/Like');
 const axios = require('axios');
 
-// Comment service URLs - thử cả Docker và Local
+// Comment service URLs - now pointing to review-service
 const COMMENT_SERVICE_URLS = [
-    'http://comment-service:5004',  // Docker
-    'http://localhost:5004'          // Local
+    'http://review-service:5007',  // Docker
+    'http://localhost:5007'         // Local
 ];
 
-// Hàm update like count trong comment-service
+// Hàm update like count trong review-service
 async function updateCommentLikeCount(commentId, likeCount) {
     for (const baseUrl of COMMENT_SERVICE_URLS) {
         try {

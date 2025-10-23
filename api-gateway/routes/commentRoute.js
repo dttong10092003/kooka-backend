@@ -3,7 +3,8 @@ const router = express.Router();
 const proxyFactory = require('../utils/proxyFactory');
 const verifyToken = require('../middlewares/verifyToken');
 
-const commentProxy = proxyFactory('http://comment-service:5004');
+// Comment routes now go to review-service
+const commentProxy = proxyFactory('http://review-service:5007');
 
 // Public routes (no authentication required)
 router.get('/recipe/:recipeId', commentProxy);

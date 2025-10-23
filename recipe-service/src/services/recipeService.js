@@ -59,11 +59,24 @@ async function createRecipe(data) {
     data.video = await uploadIfBase64(data.video, "recipes");
   }
 
-  // Upload ảnh trong tungg bước nếu là base64
+  // Upload ảnh trong từng bước nếu là base64
   if (Array.isArray(data.instructions)) {
     for (let i = 0; i < data.instructions.length; i++) {
       const step = data.instructions[i];
-      step.image = await uploadIfBase64(step.image, "recipes/steps");
+
+      // Nếu step.image là mảng thì upload từng ảnh
+      if (Array.isArray(step.image)) {
+        const uploadedImages = [];
+        for (let j = 0; j < Math.min(step.image.length, 4); j++) {
+          // Giới hạn 4 ảnh
+          const img = step.image[j];
+          uploadedImages.push(await uploadIfBase64(img, "recipes/steps"));
+        }
+        step.image = uploadedImages;
+      } else if (typeof step.image === "string") {
+        // Nếu chỉ có 1 ảnh string
+        step.image = [await uploadIfBase64(step.image, "recipes/steps")];
+      }
     }
   }
 
@@ -91,7 +104,20 @@ async function updateRecipe(id, data) {
   if (Array.isArray(data.instructions)) {
     for (let i = 0; i < data.instructions.length; i++) {
       const step = data.instructions[i];
-      step.image = await uploadIfBase64(step.image, "recipes/steps");
+
+      // Nếu step.image là mảng thì upload từng ảnh
+      if (Array.isArray(step.image)) {
+        const uploadedImages = [];
+        for (let j = 0; j < Math.min(step.image.length, 4); j++) {
+          // Giới hạn 4 ảnh
+          const img = step.image[j];
+          uploadedImages.push(await uploadIfBase64(img, "recipes/steps"));
+        }
+        step.image = uploadedImages;
+      } else if (typeof step.image === "string") {
+        // Nếu chỉ có 1 ảnh string
+        step.image = [await uploadIfBase64(step.image, "recipes/steps")];
+      }
     }
   }
 
@@ -116,10 +142,22 @@ async function deleteRecipe(id) {
   return deleted;
 }
 
+async function updateRecipeRating(id, rate, numberOfRate) {
+  return await Recipe.findByIdAndUpdate(
+    id,
+    { 
+      rate: Number(rate),
+      numberOfRate: Number(numberOfRate)
+    },
+    { new: true }
+  );
+}
+
 module.exports = {
   getAllRecipes,
   getRecipeById,
   createRecipe,
   updateRecipe,
   deleteRecipe,
+  updateRecipeRating,
 };

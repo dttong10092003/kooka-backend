@@ -41,6 +41,12 @@ const commentSchema = new mongoose.Schema({
         ref: 'Comment',
         default: null
     },
+    ratingRecipe: {
+        type: Number,
+        min: 1,
+        max: 5,
+        default: null // Chỉ parent comment mới có rating, reply thì null
+    },
     isEdited: {
         type: Boolean,
         default: false

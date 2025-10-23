@@ -1,4 +1,5 @@
 const Comment = require('../models/Comment');
+const reviewService = require('./reviewService');
 
 class CommentService {
     async createComment(commentData) {
@@ -14,10 +15,36 @@ class CommentService {
             if (parentComment.parentCommentId) {
                 commentData.parentCommentId = parentComment.parentCommentId;
             }
+
+            // Reply không có rating
+            commentData.ratingRecipe = null;
+        } else {
+            // Parent comment phải có rating
+            if (!commentData.ratingRecipe || commentData.ratingRecipe < 1 || commentData.ratingRecipe > 5) {
+                throw new Error('Parent comment must have a rating between 1 and 5');
+            }
         }
         
         const comment = new Comment(commentData);
-        return await comment.save();
+        const savedComment = await comment.save();
+
+        // Nếu là parent comment (có rating), tạo review
+        if (savedComment.ratingRecipe && !savedComment.parentCommentId) {
+            try {
+                await reviewService.createReviewInternal({
+                    recipeId: savedComment.recipeId,
+                    userId: savedComment.userId,
+                    commentId: savedComment._id.toString(),
+                    rating: savedComment.ratingRecipe
+                });
+            } catch (error) {
+                // Rollback: xóa comment nếu tạo review thất bại
+                await Comment.deleteOne({ _id: savedComment._id });
+                throw new Error('Failed to create review: ' + error.message);
+            }
+        }
+
+        return savedComment;
     }
 
     async getCommentsByRecipeId(recipeId, page = 1, limit = 20) {
@@ -92,6 +119,16 @@ class CommentService {
         
         if (!comment) {
             throw new Error('Comment not found or unauthorized');
+        }
+
+        // Nếu là parent comment có rating, xóa review trước
+        if (comment.ratingRecipe && !comment.parentCommentId) {
+            try {
+                await reviewService.deleteReviewInternal(commentId, userId);
+            } catch (error) {
+                console.error('Failed to delete review:', error.message);
+                // Tiếp tục xóa comment ngay cả khi xóa review thất bại
+            }
         }
 
         // Delete the comment and all its replies
