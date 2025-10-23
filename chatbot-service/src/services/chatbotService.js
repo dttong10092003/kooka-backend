@@ -72,6 +72,92 @@ Ví dụ:
     }
   }
 
+  // Analyze image to identify food dish
+  async analyzeImage(imageData, userMessage = '') {
+    try {
+      let base64Image = '';
+      let mimeType = 'image/jpeg';
+
+      // Handle different image input formats
+      if (typeof imageData === 'string') {
+        // Case 1: imageData is a URL (starts with http:// or https://)
+        if (imageData.startsWith('http://') || imageData.startsWith('https://')) {
+          console.log('Downloading image from URL...');
+          const axios = require('axios');
+          const imageResponse = await axios.get(imageData, { responseType: 'arraybuffer' });
+          base64Image = Buffer.from(imageResponse.data).toString('base64');
+          mimeType = imageResponse.headers['content-type'] || 'image/jpeg';
+        }
+        // Case 2: imageData is already base64 string (with or without data URI prefix)
+        else {
+          console.log('Using provided base64 image...');
+          // Remove data URI prefix if exists (e.g., "data:image/jpeg;base64,")
+          if (imageData.includes('base64,')) {
+            const parts = imageData.split('base64,');
+            base64Image = parts[1];
+            // Extract mime type from data URI
+            const mimeMatch = parts[0].match(/data:([^;]+);/);
+            if (mimeMatch) {
+              mimeType = mimeMatch[1];
+            }
+          } else {
+            base64Image = imageData;
+          }
+        }
+      }
+
+      if (!base64Image) {
+        console.error('No valid image data provided');
+        return null;
+      }
+
+      console.log(`Analyzing image (${mimeType})...`);
+
+      const analysisPrompt = `
+Phân tích ảnh món ăn này và trả về JSON với format sau (chỉ trả JSON, không có text khác):
+{
+  "dishName": "tên món ăn tiếng Việt",
+  "confidence": "high | medium | low",
+  "ingredients": ["danh sách nguyên liệu có thể nhận diện được"],
+  "cuisine": "quốc gia/ẩm thực (VD: Việt Nam, Ý, Nhật Bản...)",
+  "description": "mô tả ngắn gọn về món ăn"
+}
+
+${userMessage ? `Người dùng hỏi: "${userMessage}"` : ''}
+
+Lưu ý: 
+- Nếu không chắc chắn là món gì, đặt confidence là "low"
+- dishName phải là tên món ăn phổ biến, chuẩn xác
+`;
+
+      const result = await this.model.generateContent([
+        analysisPrompt,
+        {
+          inlineData: {
+            mimeType: mimeType,
+            data: base64Image
+          }
+        }
+      ]);
+
+      const response = await result.response;
+      const text = response.text();
+
+      // Extract JSON from response
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const analysis = JSON.parse(jsonMatch[0]);
+        console.log('Image Analysis:', analysis);
+        return analysis;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error analyzing image:', error.message);
+      return null;
+    }
+  }
+
   // Fetch relevant data based on intent
   async fetchRelevantData(intent, entities) {
     let data = {};
@@ -219,7 +305,7 @@ Ví dụ:
   }
 
   // Generate response using Gemini with context
-  async generateResponse(userMessage, relevantData, conversationHistory = []) {
+  async generateResponse(userMessage, relevantData, conversationHistory = [], imageUrl = null) {
     let contextPrompt = `Bạn là trợ lý ảo thông minh của ứng dụng nấu ăn Kooka. 
 Nhiệm vụ của bạn là giúp người dùng tìm kiếm công thức nấu ăn, gợi ý món ăn, trả lời câu hỏi về nấu ăn.
 
@@ -234,6 +320,19 @@ Hãy trả lời một cách thân thiện, nhiệt tình và NGẮN GỌN (tố
       recentHistory.forEach(msg => {
         contextPrompt += `${msg.role === 'user' ? 'Người dùng' : 'Trợ lý'}: ${msg.content}\n`;
       });
+    }
+
+    // Add image analysis if available
+    if (relevantData.imageAnalysis) {
+      contextPrompt += '\n### Phân tích ảnh món ăn:\n';
+      contextPrompt += JSON.stringify(relevantData.imageAnalysis, null, 2);
+      
+      if (relevantData.foundInDatabase === false) {
+        contextPrompt += `\n\nMón "${relevantData.searchedDishName}" KHÔNG CÓ trong database của Kooka.\n`;
+        contextPrompt += 'Hãy lịch sự thông báo và chia sẻ thông tin về món ăn này dựa trên ảnh và kiến thức của bạn.\n';
+      } else if (relevantData.foundInDatabase === true) {
+        contextPrompt += `\n\nMón "${relevantData.recipe.name}" CÓ trong database! Hãy sử dụng thông tin chi tiết bên dưới.\n`;
+      }
     }
 
     // Add relevant data if available (summarize if too long)
@@ -384,36 +483,85 @@ Hãy trả lời một cách thân thiện, nhiệt tình và NGẮN GỌN (tố
   }
 
   // Main chat method
-  async chat(userMessage, sessionId, userId = null) {
+  async chat(userMessage, sessionId, userId = null, imageData = null) {
     try {
-      // Step 1: Analyze intent
-      const intentAnalysis = await this.analyzeIntent(userMessage);
+      let imageAnalysis = null;
+      let dishNameFromImage = null;
+
+      // Step 1: Analyze image if provided (can be URL or base64)
+      if (imageData) {
+        console.log('Image data provided, analyzing...');
+        imageAnalysis = await this.analyzeImage(imageData, userMessage);
+        
+        if (imageAnalysis && imageAnalysis.dishName) {
+          dishNameFromImage = imageAnalysis.dishName;
+          console.log(`Detected dish from image: ${dishNameFromImage}`);
+        }
+      }
+
+      // Step 2: Analyze intent (use dish name from image if available)
+      const messageToAnalyze = dishNameFromImage 
+        ? `${userMessage}. Món ăn trong ảnh: ${dishNameFromImage}`
+        : userMessage;
+      
+      // Run intent analysis and data fetching in parallel for speed
+      const [intentAnalysis, conversationHistory] = await Promise.all([
+        this.analyzeIntent(messageToAnalyze),
+        this.getConversationHistory(sessionId, 5)
+      ]);
+      
       console.log('Intent Analysis:', intentAnalysis);
 
-      // Step 2: Fetch relevant data if needed
+      // Step 3: Fetch relevant data if needed
       let relevantData = {};
+      
+      // If we have dish name from image, try to search for it
+      if (dishNameFromImage) {
+        const searchResult = await dataFetchService.searchRecipes(dishNameFromImage);
+        
+        if (searchResult && searchResult.recipes && searchResult.recipes.length > 0) {
+          // Found in database
+          relevantData.recipe = searchResult.recipes[0];
+          relevantData.imageAnalysis = imageAnalysis;
+          relevantData.foundInDatabase = true;
+          console.log(`Found "${dishNameFromImage}" in database`);
+        } else {
+          // Not found in database
+          relevantData.imageAnalysis = imageAnalysis;
+          relevantData.foundInDatabase = false;
+          relevantData.searchedDishName = dishNameFromImage;
+          console.log(`"${dishNameFromImage}" not found in database`);
+        }
+      }
+      
+      // Also fetch data based on intent
       if (intentAnalysis.needsData) {
-        relevantData = await this.fetchRelevantData(intentAnalysis.intent, intentAnalysis.entities);
+        const intentData = await this.fetchRelevantData(intentAnalysis.intent, intentAnalysis.entities);
+        relevantData = { ...relevantData, ...intentData };
         console.log('Relevant Data Keys:', Object.keys(relevantData));
       }
 
-      // Step 3: Get conversation history
-      const conversationHistory = await this.getConversationHistory(sessionId, 5);
-
       // Step 4: Generate response
-      const assistantMessage = await this.generateResponse(userMessage, relevantData, conversationHistory);
+      const assistantMessage = await this.generateResponse(userMessage, relevantData, conversationHistory, imageData);
 
-      // Step 5: Save conversation
-      await this.saveConversation(sessionId, userId, userMessage, assistantMessage, {
+      // Step 5: Prepare structured response data
+      const structuredData = this.prepareStructuredResponse(relevantData);
+
+      // Step 6: Save conversation (don't wait for it)
+      this.saveConversation(sessionId, userId, userMessage, assistantMessage, {
         intent: intentAnalysis.intent,
-        entities: intentAnalysis.entities
-      });
+        entities: intentAnalysis.entities,
+        hasImage: !!imageData,
+        imageAnalysis: imageAnalysis
+      }).catch(err => console.error('Error saving conversation:', err));
 
       return {
         success: true,
         message: assistantMessage,
         intent: intentAnalysis.intent,
-        data: relevantData
+        structuredData: structuredData,
+        data: relevantData,
+        imageAnalysis: imageAnalysis
       };
     } catch (error) {
       console.error('Error in chat:', error);
@@ -423,6 +571,52 @@ Hãy trả lời một cách thân thiện, nhiệt tình và NGẮN GỌN (tố
         error: error.message
       };
     }
+  }
+
+  // Prepare structured response data for easy rendering
+  prepareStructuredResponse(relevantData) {
+    const result = {
+      recipes: [],
+      recipe: null
+    };
+
+    // Single recipe (from image or detail query)
+    if (relevantData.recipe) {
+      result.recipe = {
+        id: relevantData.recipe._id,
+        name: relevantData.recipe.name,
+        image: relevantData.recipe.image,
+        rating: relevantData.recipe.rate || 0,
+        numberOfRatings: relevantData.recipe.numberOfRate || 0,
+        difficulty: relevantData.recipe.difficulty,
+        time: relevantData.recipe.time,
+        calories: relevantData.recipe.calories,
+        size: relevantData.recipe.size,
+        cuisine: relevantData.recipe.cuisine?.name || null,
+        category: relevantData.recipe.category?.name || null,
+        short: relevantData.recipe.short
+      };
+    }
+
+    // Multiple recipes (from search/filter)
+    if (relevantData.recipes && relevantData.recipes.length > 0) {
+      result.recipes = relevantData.recipes.map(r => ({
+        id: r._id,
+        name: r.name,
+        image: r.image,
+        rating: r.rate || 0,
+        numberOfRatings: r.numberOfRate || 0,
+        difficulty: r.difficulty,
+        time: r.time,
+        calories: r.calories,
+        size: r.size,
+        cuisine: r.cuisine?.name || null,
+        category: r.category?.name || null,
+        short: r.short
+      }));
+    }
+
+    return result;
   }
 
   // Clear conversation history

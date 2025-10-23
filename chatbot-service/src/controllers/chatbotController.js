@@ -5,19 +5,28 @@ class ChatbotController {
   // Send message to chatbot
   async sendMessage(req, res) {
     try {
-      const { message, sessionId, userId } = req.body;
+      const { message, sessionId, userId, imageUrl, imageBase64 } = req.body;
 
-      if (!message) {
+      // At least message or image must be provided
+      if (!message && !imageUrl && !imageBase64) {
         return res.status(400).json({
           success: false,
-          error: 'Message is required'
+          error: 'Message, imageUrl, or imageBase64 is required'
         });
       }
 
       // Generate session ID if not provided
       const finalSessionId = sessionId || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-      const result = await chatbotService.chat(message, finalSessionId, userId);
+      // Use imageBase64 if provided, otherwise use imageUrl
+      const imageData = imageBase64 || imageUrl;
+
+      const result = await chatbotService.chat(
+        message || 'Món ăn trong ảnh này là gì?', 
+        finalSessionId, 
+        userId,
+        imageData // Pass image data (base64 or URL)
+      );
 
       return res.status(200).json({
         ...result,
