@@ -6,6 +6,7 @@ const verifyToken = require('../middlewares/verifyToken');
 const reviewProxy = proxyFactory('http://review-service:5007');
 
 // Public routes (no authentication required)
+router.get('/count', reviewProxy);
 router.get('/comment/:commentId', reviewProxy);
 router.get('/recipe/:recipeId', reviewProxy);
 router.get('/recipe/:recipeId/stats', reviewProxy);

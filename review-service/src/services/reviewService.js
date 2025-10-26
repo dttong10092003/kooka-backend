@@ -144,6 +144,10 @@ class ReviewService {
             ratingDistribution
         };
     }
+
+    async getReviewCount() {
+        return await Review.countDocuments();
+    }
 }
 
 module.exports = new ReviewService();

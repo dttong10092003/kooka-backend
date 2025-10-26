@@ -39,3 +39,37 @@ exports.updateProfile = async (req, res) => {
     res.status(500).json({ message: err.message })
   }
 }
+
+// Đếm số user
+exports.getUserCount = async (req, res) => {
+  try {
+    const count = await userService.getUserCount();
+    res.json({ count });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+}
+
+// Lấy danh sách recent users
+exports.getRecentUsers = async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+    const users = await userService.getRecentUsers(limit);
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+}
+
+// Lấy số users đăng ký theo tuần của mỗi tháng
+exports.getUsersByWeek = async (req, res) => {
+  try {
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+    const month = parseInt(req.query.month) || new Date().getMonth() + 1;
+    
+    const stats = await userService.getUsersByWeek(year, month);
+    res.json(stats);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+}
