@@ -104,19 +104,19 @@ async function updateRecipe(id, data) {
   if (Array.isArray(data.instructions)) {
     for (let i = 0; i < data.instructions.length; i++) {
       const step = data.instructions[i];
-
-      // Nếu step.image là mảng thì upload từng ảnh
-      if (Array.isArray(step.image)) {
+ 
+      // Nếu step.images là mảng thì upload từng ảnh
+      if (Array.isArray(step.images)) {
         const uploadedImages = [];
-        for (let j = 0; j < Math.min(step.image.length, 4); j++) {
+        for (let j = 0; j < Math.min(step.images.length, 4); j++) {
           // Giới hạn 4 ảnh
-          const img = step.image[j];
+          const img = step.images[j];
           uploadedImages.push(await uploadIfBase64(img, "recipes/steps"));
         }
-        step.image = uploadedImages;
-      } else if (typeof step.image === "string") {
+        step.images = uploadedImages;
+      } else if (typeof step.images === "string") {
         // Nếu chỉ có 1 ảnh string
-        step.image = [await uploadIfBase64(step.image, "recipes/steps")];
+        step.images = [await uploadIfBase64(step.images, "recipes/steps")];
       }
     }
   }

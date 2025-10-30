@@ -309,7 +309,15 @@ Lưu ý:
     let contextPrompt = `Bạn là trợ lý ảo thông minh của ứng dụng nấu ăn Kooka. 
 Nhiệm vụ của bạn là giúp người dùng tìm kiếm công thức nấu ăn, gợi ý món ăn, trả lời câu hỏi về nấu ăn.
 
-Hãy trả lời một cách thân thiện, nhiệt tình và NGẮN GỌN (tối đa 500 từ).
+QUAN TRỌNG - Quy tắc trả lời:
+- Khi liệt kê NHIỀU món ăn: 
+  + Chỉ hiển thị tối đa 6 món phổ biến nhất
+  + Format ngắn gọn: "1. 🍜 [Tên món] - ⭐ [rating]/5 - [độ khó] - [thời gian]"
+  + Sử dụng emoji đẹp mắt cho món ăn (🍜 🍲 🍛 🥘 🍱 🍣 🍝 🍕 🥗 🍰 🧁 ☕...)
+  + KHÔNG mô tả chi tiết, KHÔNG có card
+  + Thêm dòng cuối: "Bạn muốn biết chi tiết món nào?"
+- Nếu là CHI TIẾT 1 món: Trình bày đầy đủ nguyên liệu, bước làm
+- Luôn trả lời thân thiện, nhiệt tình và NGẮN GỌN
 
 `;
 
@@ -387,28 +395,37 @@ Hãy trả lời một cách thân thiện, nhiệt tình và NGẮN GỌN (tố
       }
       // Handle multiple recipes list
       else if (relevantData.recipes && relevantData.recipes.length > 0) {
-        const recipesSummary = relevantData.recipes.slice(0, 8).map(r => ({
+        const totalRecipes = relevantData.recipes.length;
+        
+        // Giới hạn chỉ lấy 6 món phổ biến nhất (sort by rating)
+        const topRecipes = relevantData.recipes
+          .sort((a, b) => (b.rate || 0) - (a.rate || 0))
+          .slice(0, 6);
+        
+        const recipesSummary = topRecipes.map(r => ({
           name: r.name,
-          short: r.short,
-          difficulty: r.difficulty,
-          time: r.time,
-          calories: r.calories,
-          size: r.size,
-          cuisine: r.cuisine?.name || null,
-          category: r.category?.name || null,
+          image: r.image,
           rating: r.rate || 0,
           numberOfRatings: r.numberOfRate || 0,
-          ingredients: r.ingredients?.slice(0, 5).map(i => i.name)
+          difficulty: r.difficulty,
+          time: r.time
         }));
-        contextPrompt += JSON.stringify({ recipes: recipesSummary }, null, 2);
+        
+        contextPrompt += JSON.stringify({ 
+          totalRecipes: totalRecipes,
+          topRecipes: recipesSummary 
+        }, null, 2);
+        
+        contextPrompt += '\n\nHãy trình bày NGẮN GỌN danh sách món ăn. Chỉ hiển thị TÊN MÓN + EMOJI HÌNH ẢNH + RATING + ĐỘ KHÓ + THỜI GIAN.\n';
+        contextPrompt += 'Format: "1. 🍜 [Tên món] - ⭐ [rating]/5 ([số đánh giá]) - [độ khó] - [thời gian]"\n';
+        contextPrompt += `Chỉ hiển thị ${topRecipes.length} món phổ biến nhất${totalRecipes > 6 ? ` (từ tổng ${totalRecipes} món tìm được)` : ''}.\n`;
+        contextPrompt += 'KHÔNG được mô tả chi tiết từng món. Chỉ liệt kê ngắn gọn.';
 
         // Add filter info if available
         if (relevantData.filters) {
           contextPrompt += '\n\n### Bộ lọc đã áp dụng:\n';
           contextPrompt += JSON.stringify(relevantData.filters, null, 2);
         }
-        
-        contextPrompt += '\n\nHãy sử dụng dữ liệu trên để trả lời câu hỏi một cách chính xác. Khi giới thiệu món ăn, hãy đề cập đến các thông tin như: thời gian nấu, độ khó, calo, số người ăn (size), quốc gia (cuisine), và đặc biệt là RATING (số sao đánh giá) để người dùng biết món nào được yêu thích. Format rating như: "⭐ 4.5/5 (10 đánh giá)".';
       } else {
         contextPrompt += JSON.stringify(relevantData, null, 2);
       }
@@ -444,6 +461,15 @@ Hãy trả lời một cách thân thiện, nhiệt tình và NGẮN GỌN (tố
   // Save conversation to database
   async saveConversation(sessionId, userId, userMessage, assistantMessage, metadata = {}) {
     try {
+      // Validate that both messages have content
+      if (!userMessage || !assistantMessage) {
+        console.error('Cannot save conversation: missing content', { 
+          hasUserMessage: !!userMessage, 
+          hasAssistantMessage: !!assistantMessage 
+        });
+        return null;
+      }
+
       let conversation = await Conversation.findOne({ sessionId });
 
       if (!conversation) {
@@ -577,7 +603,8 @@ Hãy trả lời một cách thân thiện, nhiệt tình và NGẮN GỌN (tố
   prepareStructuredResponse(relevantData) {
     const result = {
       recipes: [],
-      recipe: null
+      recipe: null,
+      totalCount: 0
     };
 
     // Single recipe (from image or detail query)
@@ -598,22 +625,13 @@ Hãy trả lời một cách thân thiện, nhiệt tình và NGẮN GỌN (tố
       };
     }
 
-    // Multiple recipes (from search/filter)
+    // Multiple recipes - KHÔNG TRẢ VỀ CARDS
+    // Chỉ trả về empty array để frontend không render cards
+    // Thông tin món ăn sẽ được chatbot hiển thị trong text response
     if (relevantData.recipes && relevantData.recipes.length > 0) {
-      result.recipes = relevantData.recipes.map(r => ({
-        id: r._id,
-        name: r.name,
-        image: r.image,
-        rating: r.rate || 0,
-        numberOfRatings: r.numberOfRate || 0,
-        difficulty: r.difficulty,
-        time: r.time,
-        calories: r.calories,
-        size: r.size,
-        cuisine: r.cuisine?.name || null,
-        category: r.category?.name || null,
-        short: r.short
-      }));
+      result.totalCount = relevantData.recipes.length;
+      // Không trả về recipes array để frontend không hiển thị cards
+      result.recipes = [];
     }
 
     return result;
