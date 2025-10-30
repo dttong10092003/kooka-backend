@@ -15,7 +15,7 @@ Phân tích ý định của người dùng và trích xuất thông tin từ c�
 
 Trả về JSON với format sau (chỉ trả JSON, không có text khác):
 {
-  "intent": "search_recipe | get_recipe_details | list_recipes | get_ingredients | get_categories | get_cuisines | recommend_recipe | get_reviews | search_by_difficulty | search_by_criteria | general_question",
+  "intent": "search_recipe | get_recipe_details | list_recipes | get_ingredients | get_categories | get_cuisines | recommend_recipe | get_reviews | search_by_difficulty | search_by_criteria | create_meal_plan | general_question",
   "entities": {
     "recipeName": "tên món ăn nếu có",
     "ingredients": ["danh sách nguyên liệu nếu có"],
@@ -27,7 +27,9 @@ Trả về JSON với format sau (chỉ trả JSON, không có text khác):
     "maxCalories": "calo tối đa nếu có",
     "minCalories": "calo tối thiểu nếu có",
     "size": "số người ăn nếu có",
-    "recipeId": "ID công thức nếu có"
+    "recipeId": "ID công thức nếu có",
+    "mealPlanType": "loại meal plan (văn phòng | ăn kiêng | ăn chay | tăng cân | tiểu đường | người bận rộn | người già | thể hình...)",
+    "duration": "số ngày (mặc định 7)"
   },
   "needsData": true/false
 }
@@ -38,6 +40,7 @@ Hướng dẫn phân tích:
 - Intent "recommend_recipe": khi hỏi gợi ý món ăn theo tiêu chí (món Việt Nam, món Ý...) HOẶC gợi ý chung chung
 - Intent "get_cuisines": khi hỏi "có những quốc gia nào", "các món ăn của nước nào"
 - Intent "search_recipe": khi tìm kiếm món ăn cụ thể theo tên
+- Intent "create_meal_plan": khi người dùng yêu cầu tạo kế hoạch bữa ăn, meal plan
 
 Ví dụ:
 - "Món nào nấu nhanh dưới 30 phút?" -> search_by_criteria, maxTime: 30
@@ -52,6 +55,10 @@ Ví dụ:
 - "Món bữa sáng dễ làm" -> recommend_recipe, category: "Bữa sáng", difficulty: "Dễ"
 - "Món dễ nấu" -> search_by_difficulty, difficulty: "Dễ"
 - "Gợi ý món ăn" -> recommend_recipe (không có tiêu chí cụ thể)
+- "Tạo meal plan cho người văn phòng" -> create_meal_plan, mealPlanType: "văn phòng"
+- "Lên kế hoạch ăn kiêng 1 tuần" -> create_meal_plan, mealPlanType: "ăn kiêng", duration: 7
+- "Plan bữa ăn cho người ăn chay" -> create_meal_plan, mealPlanType: "ăn chay"
+- "Tạo thực đơn cho người tập gym" -> create_meal_plan, mealPlanType: "thể hình"
 `;
 
     try {
@@ -293,6 +300,14 @@ Lưu ý:
           }
           break;
 
+        case 'create_meal_plan':
+          if (entities.mealPlanType) {
+            console.log('🍽️ Generating meal plan for:', entities.mealPlanType);
+            const mealPlanData = await this.generateMealPlan(entities);
+            data.generatedMealPlan = mealPlanData;
+          }
+          break;
+
         default:
           // No specific data needed
           break;
@@ -302,6 +317,192 @@ Lưu ý:
     }
 
     return data;
+  }
+
+  // 🆕 Generate AI meal plan
+  async generateMealPlan(entities) {
+    const { mealPlanType, duration = 7 } = entities;
+
+    console.log(`📋 Creating meal plan: ${mealPlanType} for ${duration} days`);
+
+    // Step 1: Build search criteria based on meal plan type
+    const criteria = this.getMealPlanCriteria(mealPlanType);
+    console.log('🔍 Search criteria:', criteria);
+
+    // Step 2: Fetch suitable recipes from database
+    const recipesResult = await dataFetchService.getRecipesByFilters(criteria, 100);
+    
+    if (!recipesResult || !recipesResult.recipes || recipesResult.recipes.length === 0) {
+      console.log('❌ No recipes found for criteria');
+      return {
+        success: false,
+        message: 'Không tìm thấy công thức phù hợp',
+        recipes: []
+      };
+    }
+
+    console.log(`✅ Found ${recipesResult.recipes.length} suitable recipes`);
+
+    // Step 3: Use AI to select and distribute recipes
+    const selectedRecipes = await this.selectRecipesWithAI(
+      recipesResult.recipes, 
+      mealPlanType, 
+      duration
+    );
+
+    console.log(`🎯 Selected ${selectedRecipes.length} recipes for meal plan`);
+
+    // Step 4: Create 7-day meal plan structure
+    const mealPlan = this.createMealPlanStructure(selectedRecipes, duration);
+
+    return {
+      success: true,
+      mealPlanType,
+      duration,
+      recipes: selectedRecipes,
+      mealPlan,
+      totalRecipes: selectedRecipes.length
+    };
+  }
+
+  // Get search criteria based on meal plan type
+  getMealPlanCriteria(mealPlanType) {
+    const normalized = mealPlanType.toLowerCase();
+    
+    const criteriaMap = {
+      'văn phòng': {
+        maxTime: 45,
+        difficulty: 'Dễ',
+        maxCalories: 600
+      },
+      'ăn kiêng': {
+        maxCalories: 400,
+        difficulty: 'Dễ'
+      },
+      'ăn chay': {
+        category: 'Món chay'
+      },
+      'tăng cân': {
+        minCalories: 600
+      },
+      'tiểu đường': {
+        maxCalories: 500
+      },
+      'người bận rộn': {
+        maxTime: 30,
+        difficulty: 'Dễ'
+      },
+      'người già': {
+        difficulty: 'Dễ',
+        maxTime: 45
+      },
+      'thể hình': {
+        minCalories: 500
+      }
+    };
+
+    return criteriaMap[normalized] || { difficulty: 'Dễ' };
+  }
+
+  // Use AI to intelligently select recipes
+  async selectRecipesWithAI(allRecipes, mealPlanType, duration) {
+    const needed = duration * 3; // 7 days x 3 meals = 21
+
+    // If we have enough recipes, use AI to select best ones
+    if (allRecipes.length >= needed) {
+      console.log('🤖 Using AI to select best recipes...');
+      
+      const selectionPrompt = `
+Bạn là chuyên gia dinh dưỡng. Từ danh sách ${allRecipes.length} công thức dưới đây, 
+hãy chọn ${needed} công thức phù hợp nhất cho meal plan "${mealPlanType}".
+
+Tiêu chí chọn:
+- Đa dạng món ăn (không lặp quá nhiều)
+- Cân bằng dinh dưỡng
+- Phù hợp với mục đích: ${mealPlanType}
+- Ưu tiên món có rating cao
+
+Danh sách công thức (top 50):
+${allRecipes.slice(0, 50).map((r, idx) => 
+  `${idx + 1}. ${r._id} | ${r.name} | ${r.rate || 0}/5 | ${r.time}m | ${r.calories || 'N/A'}cal | ${r.difficulty}`
+).join('\n')}
+
+Trả về JSON array với ${needed} ID công thức được chọn (chỉ trả JSON, không có text khác):
+["id1", "id2", "id3", ...]
+`;
+
+      try {
+        const result = await this.model.generateContent(selectionPrompt);
+        const response = await result.response;
+        const text = response.text();
+        
+        const jsonMatch = text.match(/\[[\s\S]*?\]/);
+        if (jsonMatch) {
+          const selectedIds = JSON.parse(jsonMatch[0]);
+          const selected = allRecipes.filter(r => selectedIds.includes(r._id)).slice(0, needed);
+          console.log(`✅ AI selected ${selected.length} recipes`);
+          return selected;
+        }
+      } catch (error) {
+        console.error('⚠️ Error selecting recipes with AI:', error.message);
+      }
+    }
+
+    // Fallback: Smart random selection
+    console.log('🎲 Using smart random selection...');
+    return this.smartRandomSelection(allRecipes, needed);
+  }
+
+  // Smart random selection (fallback)
+  smartRandomSelection(recipes, needed) {
+    const shuffled = [...recipes].sort(() => Math.random() - 0.5);
+    
+    // If not enough unique recipes, allow repeats
+    if (shuffled.length < needed) {
+      console.log(`⚠️ Only ${shuffled.length} recipes available, will repeat some`);
+      const result = [...shuffled];
+      while (result.length < needed) {
+        const randomRecipe = shuffled[Math.floor(Math.random() * shuffled.length)];
+        result.push(randomRecipe);
+      }
+      return result;
+    }
+
+    return shuffled.slice(0, needed);
+  }
+
+  // Create 7-day meal plan structure (without dates - FE will add when user selects startDate)
+  createMealPlanStructure(recipes, duration = 7) {
+    const mealTypes = ['morning', 'noon', 'evening'];
+    const plans = [];
+    
+    for (let day = 0; day < duration; day++) {
+      const dayPlan = {
+        // ❌ NO DATE - FE will add based on user's selected startDate
+        morning: {},
+        noon: {},
+        evening: {}
+      };
+      
+      for (let mealIndex = 0; mealIndex < 3; mealIndex++) {
+        const recipeIndex = day * 3 + mealIndex;
+        const recipe = recipes[recipeIndex];
+        
+        if (recipe) {
+          dayPlan[mealTypes[mealIndex]] = {
+            recipeId: recipe._id,
+            recipeName: recipe.name,
+            recipeImage: recipe.image
+          };
+        }
+        // else: already initialized as empty object
+      }
+      
+      plans.push(dayPlan);
+    }
+    
+    console.log(`✅ Created ${plans.length} days meal plan structure (without dates)`);
+    return plans;
   }
 
   // Generate response using Gemini with context
@@ -347,8 +548,24 @@ QUAN TRỌNG - Quy tắc trả lời:
     if (Object.keys(relevantData).length > 0) {
       contextPrompt += '\n### Dữ liệu liên quan:\n';
 
+      // Handle generated meal plan
+      if (relevantData.generatedMealPlan) {
+        const mealPlanData = relevantData.generatedMealPlan;
+        if (mealPlanData.success) {
+          contextPrompt += JSON.stringify({
+            mealPlanGenerated: true,
+            type: mealPlanData.mealPlanType,
+            totalRecipes: mealPlanData.totalRecipes,
+            duration: mealPlanData.duration
+          }, null, 2);
+          
+          contextPrompt += '\n\n✅ Đã tạo meal plan thành công! Hãy thông báo với người dùng rằng meal plan đã được tạo và hướng dẫn họ nhấn vào nút "Xem Meal Plan" bên dưới để xem chi tiết. KHÔNG liệt kê các món ăn. Chỉ cần thông báo thành công và khuyến khích họ xem chi tiết.';
+        } else {
+          contextPrompt += '\n\n❌ Không thể tạo meal plan. Hãy xin lỗi người dùng và đề xuất họ thử lại với tiêu chí khác hoặc chọn loại meal plan khác.';
+        }
+      }
       // Handle recipe not found case
-      if (relevantData.recipeNotFound) {
+      else if (relevantData.recipeNotFound) {
         contextPrompt += `\nMón "${relevantData.searchedRecipeName}" KHÔNG CÓ trong database của Kooka.\n`;
         contextPrompt += 'Hãy lịch sự thông báo với người dùng rằng hiện tại ứng dụng chưa có công thức này, ';
         contextPrompt += 'nhưng bạn có thể chia sẻ một số thông tin chung về món ăn này dựa trên kiến thức của bạn (ngắn gọn).\n';
@@ -604,8 +821,27 @@ QUAN TRỌNG - Quy tắc trả lời:
     const result = {
       recipes: [],
       recipe: null,
-      totalCount: 0
+      totalCount: 0,
+      action: null, // 🆕 NEW: action type for frontend
+      generatedMealPlan: null // 🆕 NEW: meal plan data
     };
+
+    // Handle generated meal plan
+    if (relevantData.generatedMealPlan) {
+      const mealPlanData = relevantData.generatedMealPlan;
+      if (mealPlanData.success) {
+        result.action = 'redirect_to_meal_planner';
+        result.generatedMealPlan = {
+          mealPlanType: mealPlanData.mealPlanType,
+          duration: mealPlanData.duration,
+          // ✅ MOST IMPORTANT: Plans structure (lightweight)
+          plans: mealPlanData.mealPlan, // Only contains: recipeId, recipeName, recipeImage
+          // ✅ OPTIONAL: Just count for display
+          totalRecipes: mealPlanData.totalRecipes
+          // ❌ REMOVED: Full recipes array (too heavy, frontend can fetch by ID if needed)
+        };
+      }
+    }
 
     // Single recipe (from image or detail query)
     if (relevantData.recipe) {
