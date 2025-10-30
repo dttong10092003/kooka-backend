@@ -10,6 +10,10 @@ const router = express.Router();
 const proxyRecipeService = buildProxy(process.env.RECIPE_SERVICE_URL);
 
 router.get("/", proxyRecipeService);
+router.get("/top-rated", proxyRecipeService);
+router.get("/newest", proxyRecipeService);
+router.get("/popular", proxyRecipeService);
+router.get("/trending", proxyRecipeService);
 router.get("/:id", proxyRecipeService);
 router.post("/", verifyToken, isAdmin, proxyRecipeService);
 router.put("/:id", verifyToken, isAdmin, proxyRecipeService);

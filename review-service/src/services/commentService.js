@@ -155,6 +155,146 @@ class CommentService {
         
         return comment;
     }
+
+    async getTopComments(limit = 10) {
+        const axios = require('axios');
+        const RECIPE_SERVICE_URL = process.env.RECIPE_SERVICE_URL || 'http://recipe-service:5000';
+        
+        // Aggregation để tính số replies cho mỗi parent comment
+        const topComments = await Comment.aggregate([
+            // Chỉ lấy parent comments (không có parentCommentId)
+            { $match: { parentCommentId: null } },
+            
+            // Lookup để đếm số replies
+            {
+                $lookup: {
+                    from: 'comments',
+                    localField: '_id',
+                    foreignField: 'parentCommentId',
+                    as: 'replies'
+                }
+            },
+            
+            // Thêm trường replyCount
+            {
+                $addFields: {
+                    replyCount: { $size: '$replies' }
+                }
+            },
+            
+            // Sắp xếp theo likes giảm dần, nếu bằng nhau thì theo replyCount
+            { $sort: { likes: -1, replyCount: -1 } },
+            
+            // Giới hạn số lượng
+            { $limit: limit },
+            
+            // Loại bỏ trường replies khỏi kết quả (vì đã có replyCount)
+            {
+                $project: {
+                    replies: 0
+                }
+            }
+        ]);
+
+        // Lấy thông tin recipe cho từng comment (chỉ lấy name, image và rating)
+        const commentsWithRecipe = await Promise.all(
+            topComments.map(async (comment) => {
+                try {
+                    const url = `${RECIPE_SERVICE_URL}/api/recipes/${comment.recipeId}`;
+                    const recipeResponse = await axios.get(url);
+                    
+                    return {
+                        ...comment,
+                        recipe: {
+                            _id: recipeResponse.data._id,
+                            name: recipeResponse.data.name,
+                            image: recipeResponse.data.image,
+                            rate: recipeResponse.data.rate,
+                            numberOfRate: recipeResponse.data.numberOfRate
+                        }
+                    };
+                } catch (error) {
+                    // Nếu recipe không tồn tại, vẫn trả về comment nhưng recipe = null
+                    return {
+                        ...comment,
+                        recipe: null
+                    };
+                }
+            })
+        );
+
+        return commentsWithRecipe;
+    }
+
+    async getNewestComments(limit = 5) {
+        const axios = require('axios');
+        const RECIPE_SERVICE_URL = process.env.RECIPE_SERVICE_URL || 'http://recipe-service:5000';
+        
+        // Aggregation để tính số replies cho mỗi parent comment
+        const newestComments = await Comment.aggregate([
+            // Chỉ lấy parent comments (không có parentCommentId)
+            { $match: { parentCommentId: null } },
+            
+            // Lookup để đếm số replies
+            {
+                $lookup: {
+                    from: 'comments',
+                    localField: '_id',
+                    foreignField: 'parentCommentId',
+                    as: 'replies'
+                }
+            },
+            
+            // Thêm trường replyCount
+            {
+                $addFields: {
+                    replyCount: { $size: '$replies' }
+                }
+            },
+            
+            // Sắp xếp theo thời gian tạo giảm dần (mới nhất trước)
+            { $sort: { createdAt: -1 } },
+            
+            // Giới hạn số lượng
+            { $limit: limit },
+            
+            // Loại bỏ trường replies khỏi kết quả (vì đã có replyCount)
+            {
+                $project: {
+                    replies: 0
+                }
+            }
+        ]);
+
+        // Lấy thông tin recipe cho từng comment (chỉ lấy name, image và rating)
+        const commentsWithRecipe = await Promise.all(
+            newestComments.map(async (comment) => {
+                try {
+                    const url = `${RECIPE_SERVICE_URL}/api/recipes/${comment.recipeId}`;
+                    const recipeResponse = await axios.get(url);
+                    
+                    return {
+                        ...comment,
+                        recipe: {
+                            _id: recipeResponse.data._id,
+                            name: recipeResponse.data.name,
+                            image: recipeResponse.data.image,
+                            rate: recipeResponse.data.rate,
+                            numberOfRate: recipeResponse.data.numberOfRate
+                        }
+                    };
+                } catch (error) {
+                    // Nếu recipe không tồn tại, vẫn trả về comment nhưng recipe = null
+                    return {
+                        ...comment,
+                        recipe: null
+                    };
+                }
+            })
+        );
+
+        return commentsWithRecipe;
+    }
 }
 
 module.exports = new CommentService();

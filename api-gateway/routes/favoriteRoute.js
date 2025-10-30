@@ -6,6 +6,7 @@ const verifyToken = require('../middlewares/verifyToken');
 const favoriteProxy = proxyFactory('http://favorite-service:5006');
 
 // Public routes (no authentication required)
+router.get('/most-favorited', favoriteProxy);
 router.get('/recipe/:recipeId/count', favoriteProxy);
 router.get('/recipe/:recipeId/user/:userId', favoriteProxy);
 router.get('/user/:userId', favoriteProxy);

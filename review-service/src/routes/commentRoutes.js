@@ -3,6 +3,12 @@ const router = express.Router();
 const commentController = require('../controllers/commentController');
 
 // Public routes (no authentication required)
+// Get top comments (by likes and replies)
+router.get('/top', commentController.getTopComments);
+
+// Get newest comments
+router.get('/newest', commentController.getNewestComments);
+
 // Get comments by recipe ID with pagination
 router.get('/recipe/:recipeId', commentController.getCommentsByRecipe);
 

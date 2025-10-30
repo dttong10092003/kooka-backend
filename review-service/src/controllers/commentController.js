@@ -146,6 +146,26 @@ class CommentController {
             res.status(500).json({ error: error.message });
         }
     }
+
+    async getTopComments(req, res) {
+        try {
+            const limit = parseInt(req.query.limit) || 10;
+            const comments = await commentService.getTopComments(limit);
+            res.json(comments);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    }
+
+    async getNewestComments(req, res) {
+        try {
+            const limit = parseInt(req.query.limit) || 5;
+            const comments = await commentService.getNewestComments(limit);
+            res.json(comments);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    }
 }
 
 module.exports = new CommentController();

@@ -102,6 +102,51 @@ class FavoriteService {
             favorited: favoritedRecipeIds.includes(recipeId)
         }));
     }
+
+    async getMostFavoritedRecipes(limit = 5) {
+        const axios = require('axios');
+        const RECIPE_SERVICE_URL = process.env.RECIPE_SERVICE_URL || 'http://recipe-service:5000';
+
+        // Aggregation để đếm số lượt favorite cho mỗi recipe
+        const topFavorites = await Favorite.aggregate([
+            // Group theo recipeId và đếm số lượng
+            {
+                $group: {
+                    _id: '$recipeId',
+                    favoriteCount: { $sum: 1 }
+                }
+            },
+            // Sắp xếp theo số lượt favorite giảm dần
+            { $sort: { favoriteCount: -1 } },
+            // Giới hạn số lượng
+            { $limit: limit }
+        ]);
+
+        // Lấy thông tin recipe cho từng recipeId (chỉ lấy name, image và rating)
+        const recipesWithFavorites = await Promise.all(
+            topFavorites.map(async (item) => {
+                try {
+                    const url = `${RECIPE_SERVICE_URL}/api/recipes/${item._id}`;
+                    const recipeResponse = await axios.get(url);
+                    
+                    return {
+                        _id: recipeResponse.data._id,
+                        name: recipeResponse.data.name,
+                        image: recipeResponse.data.image,
+                        rate: recipeResponse.data.rate,
+                        numberOfRate: recipeResponse.data.numberOfRate,
+                        favoriteCount: item.favoriteCount
+                    };
+                } catch (error) {
+                    // Nếu recipe không tồn tại, trả về null
+                    return null;
+                }
+            })
+        );
+
+        // Filter ra những recipe hợp lệ
+        return recipesWithFavorites.filter(recipe => recipe !== null);
+    }
 }
 
 module.exports = new FavoriteService();

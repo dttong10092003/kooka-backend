@@ -3,6 +3,9 @@ const router = express.Router();
 const favoriteController = require('../controllers/favoriteController');
 
 // Public routes (no authentication required)
+// Get most favorited recipes
+router.get('/most-favorited', favoriteController.getMostFavoritedRecipes);
+
 // Get favorite count for a recipe
 router.get('/recipe/:recipeId/count', favoriteController.getFavoriteCount);
 

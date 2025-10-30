@@ -96,6 +96,16 @@ class FavoriteController {
             res.status(500).json({ error: error.message });
         }
     }
+
+    async getMostFavoritedRecipes(req, res) {
+        try {
+            const limit = parseInt(req.query.limit) || 5;
+            const recipes = await favoriteService.getMostFavoritedRecipes(limit);
+            res.json(recipes);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    }
 }
 
 module.exports = new FavoriteController();
