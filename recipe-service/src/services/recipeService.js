@@ -80,13 +80,20 @@ async function createRecipe(data) {
     }
   }
 
-  const recipe = new Recipe(data);
-  const saved = await recipe.save();
+  try {
+    const recipe = new Recipe(data);
+    const saved = await recipe.save();
 
-  // Thông báo cho dịch vụ tìm kiếm để cập nhật chỉ mục
-  await notifySearchService();
+    // Thông báo cho dịch vụ tìm kiếm để cập nhật chỉ mục
+    await notifySearchService();
 
-  return saved;
+    return saved;
+  } catch (error) {
+    if (error.code === 11000) {
+      throw new Error(`Recipe "${data.name}" already exists`);
+    }
+    throw error;
+  }
 }
 
 async function updateRecipe(id, data) {
@@ -121,17 +128,24 @@ async function updateRecipe(id, data) {
     }
   }
 
-  // Cập nhật recipe
-  const updatedRecipe = await Recipe.findByIdAndUpdate(id, data, { new: true })
-    .populate("ingredients", "name")
-    .populate("tags", "name")
-    .populate("cuisine", "name")
-    .populate("category", "name");
+  try {
+    // Cập nhật recipe
+    const updatedRecipe = await Recipe.findByIdAndUpdate(id, data, { new: true })
+      .populate("ingredients", "name")
+      .populate("tags", "name")
+      .populate("cuisine", "name")
+      .populate("category", "name");
 
-  // Thông báo cho dịch vụ tìm kiếm để cập nhật chỉ mục
-  await notifySearchService();
+    // Thông báo cho dịch vụ tìm kiếm để cập nhật chỉ mục
+    await notifySearchService();
 
-  return updatedRecipe;
+    return updatedRecipe;
+  } catch (error) {
+    if (error.code === 11000) {
+      throw new Error(`Recipe "${data.name}" already exists`);
+    }
+    throw error;
+  }
 }
 
 async function deleteRecipe(id) {
