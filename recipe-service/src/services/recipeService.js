@@ -205,21 +205,21 @@ async function getTrendingRecipes(limit = 5) {
         try {
           // Lấy số lượt favorite
           const favoriteResponse = await axios.get(
-            `${FAVORITE_SERVICE_URL}/favorites/recipe/${recipeId}/count`
+            `${FAVORITE_SERVICE_URL}/api/favorites/recipe/${recipeId}/count`
           );
           const favoriteCount = favoriteResponse.data.count || 0;
           score += favoriteCount * 3; // Favorite có trọng số 3
 
           // Lấy số lượng comment và thông tin likes
           const commentResponse = await axios.get(
-            `${REVIEW_SERVICE_URL}/comments/recipe/${recipeId}/count`
+            `${REVIEW_SERVICE_URL}/api/comments/recipe/${recipeId}/count`
           );
           const commentCount = commentResponse.data.count || 0;
           score += commentCount * 2; // Comment có trọng số 2
 
           // Lấy chi tiết comments để tính likes và replies
           const commentsDetailResponse = await axios.get(
-            `${REVIEW_SERVICE_URL}/comments/recipe/${recipeId}?limit=100`
+            `${REVIEW_SERVICE_URL}/api/comments/recipe/${recipeId}?limit=100`
           );
           
           const comments = commentsDetailResponse.data.comments || [];

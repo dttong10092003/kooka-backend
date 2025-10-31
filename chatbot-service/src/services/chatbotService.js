@@ -633,10 +633,14 @@ QUAN TRỌNG - Quy tắc trả lời:
           topRecipes: recipesSummary 
         }, null, 2);
         
-        contextPrompt += '\n\nHãy trình bày NGẮN GỌN danh sách món ăn. Chỉ hiển thị TÊN MÓN + EMOJI HÌNH ẢNH + RATING + ĐỘ KHÓ + THỜI GIAN.\n';
-        contextPrompt += 'Format: "1. 🍜 [Tên món] - ⭐ [rating]/5 ([số đánh giá]) - [độ khó] - [thời gian]"\n';
+        contextPrompt += '\n\nHãy trình bày NGẮN GỌN danh sách món ăn với lời chào thân thiện.\n';
+        contextPrompt += `Format mẫu: "Chào bạn, Kooka đã tìm thấy ${totalRecipes} món ăn hấp dẫn với nguyên liệu [tên nguyên liệu] đây:\n`;
+        contextPrompt += '1. 🍜 [Tên món] - ⭐ [rating]/5 ([số đánh giá]) - [độ khó] - [thời gian]\n';
+        contextPrompt += '2. � [Tên món] - ⭐ [rating]/5 ([số đánh giá]) - [độ khó] - [thời gian]\n';
+        contextPrompt += '...\n';
+        contextPrompt += 'Bạn muốn biết chi tiết món nào?"\n\n';
         contextPrompt += `Chỉ hiển thị ${topRecipes.length} món phổ biến nhất${totalRecipes > 6 ? ` (từ tổng ${totalRecipes} món tìm được)` : ''}.\n`;
-        contextPrompt += 'KHÔNG được mô tả chi tiết từng món. Chỉ liệt kê ngắn gọn.';
+        contextPrompt += 'KHÔNG được mô tả chi tiết từng món. Chỉ liệt kê ngắn gọn và kết thúc bằng câu "Bạn muốn biết chi tiết món nào?" để khuyến khích người dùng click vào món ăn.';
 
         // Add filter info if available
         if (relevantData.filters) {
@@ -651,11 +655,49 @@ QUAN TRỌNG - Quy tắc trả lời:
     contextPrompt += `\n\n### Câu hỏi của người dùng:\n${userMessage}\n\n### Trả lời (NGẮN GỌN):`;
 
     try {
+      console.log(`🤖 Calling Gemini (prompt: ${contextPrompt.length} chars)...`);
       const result = await this.model.generateContent(contextPrompt);
       const response = await result.response;
-      return response.text();
+      
+      // Debug: log full response structure
+      console.log('📦 Response structure:', {
+        hasCandidates: !!response.candidates,
+        candidatesCount: response.candidates?.length || 0,
+        promptFeedback: response.promptFeedback,
+        firstCandidateFinishReason: response.candidates?.[0]?.finishReason,
+        firstCandidateSafetyRatings: response.candidates?.[0]?.safetyRatings
+      });
+      
+      // Check for safety blocks
+      if (response.promptFeedback?.blockReason) {
+        console.error('🚫 Blocked:', response.promptFeedback.blockReason);
+        throw new Error(`Blocked: ${response.promptFeedback.blockReason}`);
+      }
+      
+      // Check candidates
+      if (!response.candidates || response.candidates.length === 0) {
+        console.error('⚠️ No candidates in response');
+        throw new Error('No candidates');
+      }
+      
+      // Check finish reason
+      const firstCandidate = response.candidates[0];
+      if (firstCandidate.finishReason && firstCandidate.finishReason !== 'STOP') {
+        console.error('⚠️ Unusual finish reason:', firstCandidate.finishReason);
+      }
+      
+      const responseText = response.text();
+      
+      if (!responseText || responseText.trim() === '') {
+        console.error('⚠️ Empty response text');
+        console.error('Full candidate:', JSON.stringify(firstCandidate, null, 2));
+        throw new Error('Empty response');
+      }
+      
+      console.log(`✅ Response OK (${responseText.length} chars)`);
+      return responseText;
     } catch (error) {
-      console.error('Error generating response:', error);
+      console.error('❌ Gemini error:', error.message);
 
       // Fallback response based on data
       if (relevantData.recipeNotFound) {
@@ -861,13 +903,25 @@ QUAN TRỌNG - Quy tắc trả lời:
       };
     }
 
-    // Multiple recipes - KHÔNG TRẢ VỀ CARDS
-    // Chỉ trả về empty array để frontend không render cards
-    // Thông tin món ăn sẽ được chatbot hiển thị trong text response
+    // Multiple recipes - TRẢ VỀ DANH SÁCH ĐỂ FRONTEND RENDER THÀNH CLICKABLE CARDS
     if (relevantData.recipes && relevantData.recipes.length > 0) {
       result.totalCount = relevantData.recipes.length;
-      // Không trả về recipes array để frontend không hiển thị cards
-      result.recipes = [];
+      
+      // Trả về danh sách recipes với thông tin cần thiết để render cards
+      result.recipes = relevantData.recipes.map(recipe => ({
+        id: recipe._id,
+        name: recipe.name,
+        image: recipe.image,
+        rating: recipe.rate || 0,
+        numberOfRatings: recipe.numberOfRate || 0,
+        difficulty: recipe.difficulty,
+        time: recipe.time,
+        calories: recipe.calories,
+        size: recipe.size,
+        cuisine: recipe.cuisine?.name || null,
+        category: recipe.category?.name || null,
+        short: recipe.short
+      }));
     }
 
     return result;
