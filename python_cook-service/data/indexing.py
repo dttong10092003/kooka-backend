@@ -4,6 +4,7 @@ from fastapi import HTTPException
 from bson import ObjectId
 import json
 import time
+from unidecode import unidecode
 
 def build_cache():
     """Cache lookup nhanh cho ingredients, tags, cuisines, categories"""
@@ -23,21 +24,38 @@ def resolve_names(r, cache):
     return ing_names, tag_names, cuisine_name, category_name
 
 def generate_text_and_meta(r, cache):
-    """Sinh văn bản và metadata cho 1 recipe"""
+    """
+    Sinh văn bản và metadata cho 1 recipe với trọng số cao cho tên món.
+    Cải thiện indexing để tìm kiếm chính xác hơn như Google.
+    """
     ing_names, tag_names, cuisine_name, category_name = resolve_names(r, cache)
     ingredients_str = ", ".join(ing_names)
     tags_str = ", ".join(tag_names)
     instructions_str = json.dumps(r.get("instructions", []), default=json_util.default)
 
+    # Tăng trọng số cho tên món bằng cách lặp lại 3 lần
+    # Điều này giúp embedding model học rằng tên món quan trọng nhất
+    name = r['name']
+    name_lowercase = r.get('nameLowercase', name.lower())
+    name_no_accent = unidecode(name_lowercase)
+    
+    # Format text với trọng số cao cho tên món
     text = (
-        f"{r['name']}. Nguyên liệu: {ingredients_str}. Tags: {tags_str}. "
-        f"Tóm tắt: {r.get('short', '')}. Cuisine: {cuisine_name}. "
-        f"Category: {category_name}. Calories: {r.get('calories', 0)}."
+        f"{name}. {name}. {name}. "  # Lặp lại 3 lần để tăng trọng số
+        f"Món ăn: {name}. "
+        f"Cuisine: {cuisine_name}. Category: {category_name}. "
+        f"Tags: {tags_str}. "
+        f"Nguyên liệu: {ingredients_str}. "
+        f"Tóm tắt: {r.get('short', '')}. "
+        f"Calories: {r.get('calories', 0)}."
     )
 
+    # Lưu thêm các trường để matching chính xác
     meta = {
         "id": r["id"],
         "name": r["name"],
+        "nameLowercase": name_lowercase,
+        "nameNoAccent": name_no_accent,  # Thêm version không dấu
         "short": r.get("short", ""),
         "ingredients": ingredients_str,
         "tags": tags_str,
@@ -49,7 +67,9 @@ def generate_text_and_meta(r, cache):
         "size": r.get("size", ""),
         "difficulty": r.get("difficulty", ""),
         "cuisine": cuisine_name,
+        "cuisineLowercase": cuisine_name.lower(),
         "category": category_name,
+        "categoryLowercase": category_name.lower(),
         "rate": r.get("rate", 0.0),
         "numberOfRate": r.get("numberOfRate", 0),
         "updatedAt": str(r.get("updatedAt", ""))  # để so sánh lần sau
