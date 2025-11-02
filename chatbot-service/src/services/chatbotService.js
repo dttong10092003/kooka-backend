@@ -1,6 +1,6 @@
-const { getModel } = require('../config/gemini');
-const dataFetchService = require('./dataFetchService');
-const Conversation = require('../models/Conversation');
+const { getModel } = require("../config/gemini");
+const dataFetchService = require("./dataFetchService");
+const Conversation = require("../models/Conversation");
 
 class ChatbotService {
   constructor() {
@@ -10,10 +10,12 @@ class ChatbotService {
   // Analyze user intent and extract entities
   async analyzeIntent(userMessage) {
     const intentPrompt = `
-Phân tích ý định của người dùng và trích xuất thông tin từ câu hỏi sau:
+Bạn là AI chuyên phân tích ý định người dùng về ẩm thực và dinh dưỡng.
+
+Phân tích câu sau của người dùng:
 "${userMessage}"
 
-Trả về JSON với format sau (chỉ trả JSON, không có text khác):
+Trả về JSON với format sau (CHỈ JSON, KHÔNG có text khác):
 {
   "intent": "search_recipe | get_recipe_details | list_recipes | get_ingredients | get_categories | get_cuisines | recommend_recipe | get_reviews | search_by_difficulty | search_by_criteria | create_meal_plan | general_question",
   "entities": {
@@ -28,37 +30,157 @@ Trả về JSON với format sau (chỉ trả JSON, không có text khác):
     "minCalories": "calo tối thiểu nếu có",
     "size": "số người ăn nếu có",
     "recipeId": "ID công thức nếu có",
-    "mealPlanType": "loại meal plan (văn phòng | ăn kiêng | ăn chay | tăng cân | tiểu đường | người bận rộn | người già | thể hình...)",
-    "duration": "số ngày (mặc định 7)"
+    "mealPlanType": "loại meal plan - QUAN TRỌNG: phát hiện từ context",
+    "duration": "số ngày meal plan (mặc định 7)"
   },
   "needsData": true/false
 }
 
-Hướng dẫn phân tích:
-- Intent "search_by_difficulty": khi chỉ hỏi về độ khó đơn thuần (món dễ, món khó)
-- Intent "search_by_criteria": khi hỏi về thời gian, calo, nguyên liệu, quốc gia, size, hoặc kết hợp nhiều tiêu chí
-- Intent "recommend_recipe": khi hỏi gợi ý món ăn theo tiêu chí (món Việt Nam, món Ý...) HOẶC gợi ý chung chung
-- Intent "get_cuisines": khi hỏi "có những quốc gia nào", "các món ăn của nước nào"
-- Intent "search_recipe": khi tìm kiếm món ăn cụ thể theo tên
-- Intent "create_meal_plan": khi người dùng yêu cầu tạo kế hoạch bữa ăn, meal plan
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 HƯỚNG DẪN NHẬN DIỆN CÁC INTENT (QUAN TRỌNG):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Ví dụ:
-- "Món nào nấu nhanh dưới 30 phút?" -> search_by_criteria, maxTime: 30
-- "Món ăn ít calo" -> search_by_criteria, maxCalories: 300
-- "Món Việt Nam" -> recommend_recipe, cuisine: "Việt Nam"
-- "Món Ý" -> recommend_recipe, cuisine: "Ý"
-- "Món bữa sáng" -> recommend_recipe, category: "Bữa sáng"
-- "Món tráng miệng" -> recommend_recipe, category: "Tráng miệng"
-- "Món có gà" -> search_by_criteria, ingredients: ["gà"]
-- "Món cho 4 người" -> search_by_criteria, size: 4
-- "Món Ý dễ làm dưới 45 phút" -> recommend_recipe, cuisine: "Ý", difficulty: "Dễ", maxTime: 45
-- "Món bữa sáng dễ làm" -> recommend_recipe, category: "Bữa sáng", difficulty: "Dễ"
-- "Món dễ nấu" -> search_by_difficulty, difficulty: "Dễ"
-- "Gợi ý món ăn" -> recommend_recipe (không có tiêu chí cụ thể)
-- "Tạo meal plan cho người văn phòng" -> create_meal_plan, mealPlanType: "văn phòng"
-- "Lên kế hoạch ăn kiêng 1 tuần" -> create_meal_plan, mealPlanType: "ăn kiêng", duration: 7
-- "Plan bữa ăn cho người ăn chay" -> create_meal_plan, mealPlanType: "ăn chay"
-- "Tạo thực đơn cho người tập gym" -> create_meal_plan, mealPlanType: "thể hình"
+🔍 CÁC INTENT CHO CÂU HỎI VỀ MÓN ĂN/CÔNG THỨC:
+
+1️⃣ "search_recipe" - Tìm món ăn cụ thể theo TÊN
+   ✓ Người dùng nêu TÊN MÓN CỤ THỂ muốn tìm
+   ✓ Từ khóa: "món [tên]", "làm [tên món]", "nấu [tên món]"
+   📝 Ví dụ:
+   • "Món phở bò" → search_recipe, recipeName: "phở bò"
+   • "Cách làm bánh xèo" → search_recipe, recipeName: "bánh xèo"
+   • "Công thức bún chả" → search_recipe, recipeName: "bún chả"
+
+2️⃣ "search_by_difficulty" - Tìm món theo ĐỘ KHÓ đơn thuần
+   ✓ CHỈ HỎI VỀ ĐỘ KHÓ, không có tiêu chí khác
+   ✓ Từ khóa: "món dễ", "món khó", "món đơn giản", "món phức tạp"
+   📝 Ví dụ:
+   • "Món dễ nấu" → search_by_difficulty, difficulty: "Dễ"
+   • "Món khó làm" → search_by_difficulty, difficulty: "Khó"
+   • "Món đơn giản" → search_by_difficulty, difficulty: "Dễ"
+
+3️⃣ "search_by_criteria" - Tìm món theo TIÊU CHÍ cụ thể
+   ✓ Hỏi về: THỜI GIAN, CALO, NGUYÊN LIỆU, SIZE, hoặc KẾT HỢP nhiều tiêu chí
+   ✓ KHÔNG phải gợi ý (recommend) mà là TÌM KIẾM với điều kiện rõ ràng
+   📝 Ví dụ:
+   • "Món nào nấu nhanh dưới 30 phút?" → search_by_criteria, maxTime: 30
+   • "Món ăn ít calo" → search_by_criteria, maxCalories: 300
+   • "Món có gà" → search_by_criteria, ingredients: ["gà"]
+   • "Món cho 4 người" → search_by_criteria, size: 4
+   • "Món dưới 500 calo, có tôm" → search_by_criteria, maxCalories: 500, ingredients: ["tôm"]
+
+4️⃣ "recommend_recipe" - GỢI Ý món ăn theo TIÊU CHÍ hoặc CHUNG CHUNG
+   ✓ Hỏi GỢI Ý món ăn theo QUỐC GIA, DANH MỤC (bữa sáng, tráng miệng...)
+   ✓ Hỏi gợi ý CHUNG CHUNG (không tiêu chí cụ thể)
+   ✓ Có thể KẾT HỢP với độ khó, thời gian
+   📝 Ví dụ:
+   • "Món Việt Nam" → recommend_recipe, cuisine: "Việt Nam"
+   • "Món Ý" → recommend_recipe, cuisine: "Ý"
+   • "Món bữa sáng" → recommend_recipe, category: "Bữa sáng"
+   • "Món tráng miệng" → recommend_recipe, category: "Tráng miệng"
+   • "Gợi ý món ăn" → recommend_recipe (không tiêu chí cụ thể)
+   • "Món Ý dễ làm dưới 45 phút" → recommend_recipe, cuisine: "Ý", difficulty: "Dễ", maxTime: 45
+   • "Món bữa sáng dễ làm" → recommend_recipe, category: "Bữa sáng", difficulty: "Dễ"
+
+5️⃣ "get_cuisines" - Hỏi về DANH SÁCH QUỐC GIA/ẨM THỰC
+   ✓ Hỏi "có những quốc gia nào", "các món ăn của nước nào"
+   📝 Ví dụ:
+   • "Có những quốc gia nào?" → get_cuisines
+   • "Món ăn của những nước nào?" → get_cuisines
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 HƯỚNG DẪN NHẬN DIỆN MEAL PLAN (CHỈ CHO KẾ HOẠCH BỮA ĂN):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 Intent = "create_meal_plan" KHI NGƯỜI DÙNG:
+✓ Yêu cầu tạo MEAL PLAN / KẾ HOẠCH ĂN / THỰC ĐƠN / PLAN BỮA ĂN
+✓ Nói về CHẾ ĐỘ ĂN UỐNG / LỊCH TRÌNH ĂN / MENU TUẦN
+✓ Hỏi "ăn gì trong X ngày" / "món ăn cho cả tuần" / "bữa sáng/trưa/tối"
+✓ Đề cập MỤC ĐÍCH CỤ THỂ: văn phòng, ăn kiêng, tập gym, giảm cân, tăng cơ...
+
+📝 CÁC TỪ KHÓA MEAL PLAN (nhận diện tự động):
+• "meal plan", "kế hoạch", "thực đơn", "menu", "lịch ăn", "plan", "schedule"
+• "ăn gì", "nấu gì", "bữa ăn", "bữa sáng", "bữa trưa", "bữa tối"
+• "1 tuần", "7 ngày", "cả tuần", "tuần này", "hàng ngày"
+
+🎭 CÁC LOẠI MEAL PLAN TYPE (mealPlanType):
+
+1. "văn phòng" - Dân văn phòng, công sở, nhân viên
+   Từ khóa: văn phòng, công sở, nhân viên, làm việc, bận rộn vừa phải
+
+2. "ăn kiêng" / "giảm cân" - Giảm cân, ăn kiêng, healthy
+   Từ khóa: giảm cân, ăn kiêng, diet, healthy, gầy, béo, ít calo, detox
+
+3. "ăn chay" - Người ăn chay hoàn toàn
+   Từ khóa: ăn chay, chay, vegetarian, vegan, không thịt, không cá
+
+4. "tăng cân" - Tăng cân lành mạnh
+   Từ khóa: tăng cân, béo lên, gầy quá, tăng ký, cần tăng cân
+
+5. "tiểu đường" - Bệnh tiểu đường, đường huyết
+   Từ khóa: tiểu đường, đái tháo đường, đường huyết, diabetes, ít đường
+
+6. "người bận rộn" - Cực kỳ bận rộn, không có thời gian
+   Từ khóa: bận rộn, không có thời gian, nhanh gọn, siêu nhanh, tối giản
+
+7. "người già" - Người cao tuổi, người lớn tuổi
+   Từ khóa: người già, cao tuổi, tuổi lớn, ông bà, phụ huynh, dễ nhai, mềm
+
+8. "thể hình" / "gym" - Tập gym, thể hình, tăng cơ
+   Từ khóa: gym, thể hình, tập luyện, tăng cơ, bodybuilding, fitness, workout
+
+9. "mang thai" - Phụ nữ mang thai
+   Từ khóa: mang thai, bầu bí, thai kỳ, mẹ bầu, thai sản
+
+10. "trẻ em" - Trẻ em, trẻ nhỏ
+    Từ khóa: trẻ em, trẻ nhỏ, con nhỏ, bé, em bé, học sinh tiểu học
+
+11. "học sinh" - Học sinh, sinh viên
+    Từ khóa: học sinh, sinh viên, học đường, đi học, tiết kiệm
+
+12. "cao cấp" - Dân văn phòng cao cấp, organic
+    Từ khóa: cao cấp, organic, sang trọng, healthy cao cấp, chất lượng cao
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📚 TÓM TẮT VÍ DỤ NHẬN DIỆN:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ MEAL PLAN (intent = create_meal_plan):
+• "Tạo meal plan cho người văn phòng" → create_meal_plan, mealPlanType: "văn phòng"
+• "Lên kế hoạch ăn kiêng 1 tuần" → create_meal_plan, mealPlanType: "ăn kiêng", duration: 7
+• "Plan bữa ăn cho người ăn chay" → create_meal_plan, mealPlanType: "ăn chay"
+• "Thực đơn cho người tập gym 5 ngày" → create_meal_plan, mealPlanType: "thể hình", duration: 5
+• "Menu cho người bận rộn cả tuần" → create_meal_plan, mealPlanType: "người bận rộn", duration: 7
+• "Thực đơn giảm cân" → create_meal_plan, mealPlanType: "ăn kiêng"
+• "Kế hoạch ăn uống cho người già" → create_meal_plan, mealPlanType: "người già"
+
+✅ TÌM MÓN CỤ THỂ (intent = search_recipe):
+• "Món phở bò" → search_recipe, recipeName: "phở bò"
+• "Cách làm bánh xèo" → search_recipe, recipeName: "bánh xèo"
+
+✅ TÌM THEO ĐỘ KHÓ (intent = search_by_difficulty):
+• "Món dễ nấu" → search_by_difficulty, difficulty: "Dễ"
+• "Món khó làm" → search_by_difficulty, difficulty: "Khó"
+
+✅ TÌM THEO TIÊU CHÍ (intent = search_by_criteria):
+• "Món nào nấu nhanh dưới 30 phút?" → search_by_criteria, maxTime: 30
+• "Món ăn ít calo" → search_by_criteria, maxCalories: 300
+• "Món có gà" → search_by_criteria, ingredients: ["gà"]
+• "Món cho 4 người" → search_by_criteria, size: 4
+
+✅ GỢI Ý MÓN ĂN (intent = recommend_recipe):
+• "Món Việt Nam" → recommend_recipe, cuisine: "Việt Nam"
+• "Món bữa sáng" → recommend_recipe, category: "Bữa sáng"
+• "Món tráng miệng" → recommend_recipe, category: "Tráng miệng"
+• "Gợi ý món ăn" → recommend_recipe (không tiêu chí)
+• "Món Ý dễ làm" → recommend_recipe, cuisine: "Ý", difficulty: "Dễ"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚠️ LƯU Ý:
+- Nếu KHÔNG rõ meal plan type → mặc định "văn phòng"
+- Nếu KHÔNG có duration → mặc định 7 ngày
+- Phân biệt: "món bữa sáng" (recommend_recipe) ≠ "meal plan bữa sáng" (create_meal_plan)
+- Ưu tiên "create_meal_plan" nếu có từ khóa "kế hoạch", "thực đơn", "plan", "X ngày"
 `;
 
     try {
@@ -72,35 +194,40 @@ Ví dụ:
         return JSON.parse(jsonMatch[0]);
       }
 
-      return { intent: 'general_question', entities: {}, needsData: false };
+      return { intent: "general_question", entities: {}, needsData: false };
     } catch (error) {
-      console.error('Error analyzing intent:', error);
-      return { intent: 'general_question', entities: {}, needsData: false };
+      console.error("Error analyzing intent:", error);
+      return { intent: "general_question", entities: {}, needsData: false };
     }
   }
 
   // Analyze image to identify food dish
-  async analyzeImage(imageData, userMessage = '') {
+  async analyzeImage(imageData, userMessage = "") {
     try {
-      let base64Image = '';
-      let mimeType = 'image/jpeg';
+      let base64Image = "";
+      let mimeType = "image/jpeg";
 
       // Handle different image input formats
-      if (typeof imageData === 'string') {
+      if (typeof imageData === "string") {
         // Case 1: imageData is a URL (starts with http:// or https://)
-        if (imageData.startsWith('http://') || imageData.startsWith('https://')) {
-          console.log('Downloading image from URL...');
-          const axios = require('axios');
-          const imageResponse = await axios.get(imageData, { responseType: 'arraybuffer' });
-          base64Image = Buffer.from(imageResponse.data).toString('base64');
-          mimeType = imageResponse.headers['content-type'] || 'image/jpeg';
+        if (
+          imageData.startsWith("http://") ||
+          imageData.startsWith("https://")
+        ) {
+          console.log("Downloading image from URL...");
+          const axios = require("axios");
+          const imageResponse = await axios.get(imageData, {
+            responseType: "arraybuffer",
+          });
+          base64Image = Buffer.from(imageResponse.data).toString("base64");
+          mimeType = imageResponse.headers["content-type"] || "image/jpeg";
         }
         // Case 2: imageData is already base64 string (with or without data URI prefix)
         else {
-          console.log('Using provided base64 image...');
+          console.log("Using provided base64 image...");
           // Remove data URI prefix if exists (e.g., "data:image/jpeg;base64,")
-          if (imageData.includes('base64,')) {
-            const parts = imageData.split('base64,');
+          if (imageData.includes("base64,")) {
+            const parts = imageData.split("base64,");
             base64Image = parts[1];
             // Extract mime type from data URI
             const mimeMatch = parts[0].match(/data:([^;]+);/);
@@ -114,7 +241,7 @@ Ví dụ:
       }
 
       if (!base64Image) {
-        console.error('No valid image data provided');
+        console.error("No valid image data provided");
         return null;
       }
 
@@ -130,7 +257,7 @@ Phân tích ảnh món ăn này và trả về JSON với format sau (chỉ tr�
   "description": "mô tả ngắn gọn về món ăn"
 }
 
-${userMessage ? `Người dùng hỏi: "${userMessage}"` : ''}
+${userMessage ? `Người dùng hỏi: "${userMessage}"` : ""}
 
 Lưu ý: 
 - Nếu không chắc chắn là món gì, đặt confidence là "low"
@@ -142,9 +269,9 @@ Lưu ý:
         {
           inlineData: {
             mimeType: mimeType,
-            data: base64Image
-          }
-        }
+            data: base64Image,
+          },
+        },
       ]);
 
       const response = await result.response;
@@ -154,13 +281,13 @@ Lưu ý:
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const analysis = JSON.parse(jsonMatch[0]);
-        console.log('Image Analysis:', analysis);
+        console.log("Image Analysis:", analysis);
         return analysis;
       }
 
       return null;
     } catch (error) {
-      console.error('Error analyzing image:', error.message);
+      console.error("Error analyzing image:", error.message);
       return null;
     }
   }
@@ -171,68 +298,93 @@ Lưu ý:
 
     try {
       switch (intent) {
-        case 'search_recipe':
+        case "search_recipe":
           if (entities.recipeName) {
-            data.recipes = await dataFetchService.searchRecipes(entities.recipeName);
+            data.recipes = await dataFetchService.searchRecipes(
+              entities.recipeName
+            );
           } else if (entities.ingredients && entities.ingredients.length > 0) {
-            data.recipes = await dataFetchService.getRecipesByIngredients(entities.ingredients);
+            data.recipes = await dataFetchService.getRecipesByIngredients(
+              entities.ingredients
+            );
           }
           break;
 
-        case 'get_recipe_details':
+        case "get_recipe_details":
           // If recipeId is provided, fetch by ID
           if (entities.recipeId) {
-            data.recipe = await dataFetchService.getRecipeById(entities.recipeId);
+            data.recipe = await dataFetchService.getRecipeById(
+              entities.recipeId
+            );
             if (data.recipe) {
-              data.reviews = await dataFetchService.getReviewsByRecipeId(entities.recipeId);
-              data.comments = await dataFetchService.getCommentsByRecipeId(entities.recipeId);
+              data.reviews = await dataFetchService.getReviewsByRecipeId(
+                entities.recipeId
+              );
+              data.comments = await dataFetchService.getCommentsByRecipeId(
+                entities.recipeId
+              );
             }
-          } 
+          }
           // If recipeName is provided, search by name first
           else if (entities.recipeName) {
-            const searchResult = await dataFetchService.searchRecipes(entities.recipeName);
-            
+            const searchResult = await dataFetchService.searchRecipes(
+              entities.recipeName
+            );
+
             // If found recipes, get the first match's details
-            if (searchResult && searchResult.recipes && searchResult.recipes.length > 0) {
+            if (
+              searchResult &&
+              searchResult.recipes &&
+              searchResult.recipes.length > 0
+            ) {
               const matchedRecipe = searchResult.recipes[0];
               data.recipe = matchedRecipe;
-              
+
               // Get reviews and comments for this recipe
               if (matchedRecipe._id) {
-                data.reviews = await dataFetchService.getReviewsByRecipeId(matchedRecipe._id);
-                data.comments = await dataFetchService.getCommentsByRecipeId(matchedRecipe._id);
+                data.reviews = await dataFetchService.getReviewsByRecipeId(
+                  matchedRecipe._id
+                );
+                data.comments = await dataFetchService.getCommentsByRecipeId(
+                  matchedRecipe._id
+                );
               }
-              
+
               console.log(`Found recipe in database: ${matchedRecipe.name}`);
             } else {
               // Recipe not found in database
-              console.log(`Recipe "${entities.recipeName}" not found in database`);
+              console.log(
+                `Recipe "${entities.recipeName}" not found in database`
+              );
               data.recipeNotFound = true;
               data.searchedRecipeName = entities.recipeName;
             }
           }
           break;
 
-        case 'list_recipes':
+        case "list_recipes":
           data.recipes = await dataFetchService.getRecipes(20);
           break;
 
-        case 'get_ingredients':
+        case "get_ingredients":
           data.ingredients = await dataFetchService.getIngredients();
           break;
 
-        case 'get_categories':
+        case "get_categories":
           data.categories = await dataFetchService.getCategories();
           break;
 
-        case 'get_cuisines':
+        case "get_cuisines":
           data.cuisines = await dataFetchService.getCuisines();
           break;
 
-        case 'recommend_recipe':
+        case "recommend_recipe":
           // Check if there are specific criteria (cuisine, category, etc.)
-          const hasSpecificCriteria = entities.cuisine || entities.category ||
-            entities.difficulty || entities.maxTime ||
+          const hasSpecificCriteria =
+            entities.cuisine ||
+            entities.category ||
+            entities.difficulty ||
+            entities.maxTime ||
             entities.ingredients?.length > 0;
 
           if (hasSpecificCriteria) {
@@ -244,14 +396,19 @@ Lưu ý:
             if (entities.difficulty) filters.difficulty = entities.difficulty;
             if (entities.maxTime) filters.maxTime = parseInt(entities.maxTime);
             if (entities.minTime) filters.minTime = parseInt(entities.minTime);
-            if (entities.maxCalories) filters.maxCalories = parseInt(entities.maxCalories);
-            if (entities.minCalories) filters.minCalories = parseInt(entities.minCalories);
+            if (entities.maxCalories)
+              filters.maxCalories = parseInt(entities.maxCalories);
+            if (entities.minCalories)
+              filters.minCalories = parseInt(entities.minCalories);
             if (entities.size) filters.size = parseInt(entities.size);
             if (entities.ingredients && entities.ingredients.length > 0) {
               filters.ingredients = entities.ingredients;
             }
 
-            const criteriaResult = await dataFetchService.getRecipesByFilters(filters, 20);
+            const criteriaResult = await dataFetchService.getRecipesByFilters(
+              filters,
+              20
+            );
             if (criteriaResult) {
               data.recipes = criteriaResult.recipes;
               data.filters = filters;
@@ -262,22 +419,28 @@ Lưu ý:
           }
           break;
 
-        case 'get_reviews':
+        case "get_reviews":
           if (entities.recipeId) {
-            data.reviews = await dataFetchService.getReviewsByRecipeId(entities.recipeId);
+            data.reviews = await dataFetchService.getReviewsByRecipeId(
+              entities.recipeId
+            );
           }
           break;
 
-        case 'search_by_difficulty':
+        case "search_by_difficulty":
           if (entities.difficulty) {
-            const difficultyResult = await dataFetchService.getRecipesByDifficulty(entities.difficulty, 20);
+            const difficultyResult =
+              await dataFetchService.getRecipesByDifficulty(
+                entities.difficulty,
+                20
+              );
             if (difficultyResult) {
               data.recipes = difficultyResult.recipes;
             }
           }
           break;
 
-        case 'search_by_criteria':
+        case "search_by_criteria":
           // Build filters object from entities
           const filters = {};
 
@@ -285,24 +448,29 @@ Lưu ý:
           if (entities.difficulty) filters.difficulty = entities.difficulty;
           if (entities.maxTime) filters.maxTime = parseInt(entities.maxTime);
           if (entities.minTime) filters.minTime = parseInt(entities.minTime);
-          if (entities.maxCalories) filters.maxCalories = parseInt(entities.maxCalories);
-          if (entities.minCalories) filters.minCalories = parseInt(entities.minCalories);
+          if (entities.maxCalories)
+            filters.maxCalories = parseInt(entities.maxCalories);
+          if (entities.minCalories)
+            filters.minCalories = parseInt(entities.minCalories);
           if (entities.size) filters.size = parseInt(entities.size);
           if (entities.ingredients && entities.ingredients.length > 0) {
             filters.ingredients = entities.ingredients;
           }
 
           // Fetch recipes with filters
-          const criteriaResult = await dataFetchService.getRecipesByFilters(filters, 20);
+          const criteriaResult = await dataFetchService.getRecipesByFilters(
+            filters,
+            20
+          );
           if (criteriaResult) {
             data.recipes = criteriaResult.recipes;
             data.filters = filters; // Include filters in response for debugging
           }
           break;
 
-        case 'create_meal_plan':
+        case "create_meal_plan":
           if (entities.mealPlanType) {
-            console.log('🍽️ Generating meal plan for:', entities.mealPlanType);
+            console.log("🍽️ Generating meal plan for:", entities.mealPlanType);
             const mealPlanData = await this.generateMealPlan(entities);
             data.generatedMealPlan = mealPlanData;
           }
@@ -313,156 +481,1061 @@ Lưu ý:
           break;
       }
     } catch (error) {
-      console.error('Error fetching relevant data:', error);
+      console.error("Error fetching relevant data:", error);
     }
 
     return data;
   }
 
-  // 🆕 Generate AI meal plan
+  // 🆕 Generate INTELLIGENT AI meal plan (breakfast/lunch/dinner specific)
   async generateMealPlan(entities) {
     const { mealPlanType, duration = 7 } = entities;
 
-    console.log(`📋 Creating meal plan: ${mealPlanType} for ${duration} days`);
+    console.log(
+      `📋 Creating INTELLIGENT meal plan: ${mealPlanType} for ${duration} days`
+    );
 
-    // Step 1: Build search criteria based on meal plan type
-    const criteria = this.getMealPlanCriteria(mealPlanType);
-    console.log('🔍 Search criteria:', criteria);
+    // Step 1: Get meal-time specific criteria
+    const mealCriteria = this.getMealPlanCriteria(mealPlanType);
+    console.log(
+      "🔍 Meal-time specific criteria:",
+      JSON.stringify(mealCriteria, null, 2)
+    );
 
-    // Step 2: Fetch suitable recipes from database
-    const recipesResult = await dataFetchService.getRecipesByFilters(criteria, 100);
-    
-    if (!recipesResult || !recipesResult.recipes || recipesResult.recipes.length === 0) {
-      console.log('❌ No recipes found for criteria');
-      return {
-        success: false,
-        message: 'Không tìm thấy công thức phù hợp',
-        recipes: []
-      };
-    }
+    // Step 2: Fetch recipes for EACH meal time (breakfast/lunch/dinner) separately
+    const breakfastRecipes = await this.fetchRecipesForMeal(
+      "breakfast",
+      mealCriteria.breakfast,
+      mealPlanType
+    );
+    const lunchRecipes = await this.fetchRecipesForMeal(
+      "lunch",
+      mealCriteria.lunch,
+      mealPlanType
+    );
+    const dinnerRecipes = await this.fetchRecipesForMeal(
+      "dinner",
+      mealCriteria.dinner,
+      mealPlanType
+    );
 
-    console.log(`✅ Found ${recipesResult.recipes.length} suitable recipes`);
+    console.log(
+      `✅ Fetched: ${breakfastRecipes.length} breakfast, ${lunchRecipes.length} lunch, ${dinnerRecipes.length} dinner recipes`
+    );
 
-    // Step 3: Use AI to select and distribute recipes
-    const selectedRecipes = await this.selectRecipesWithAI(
-      recipesResult.recipes, 
-      mealPlanType, 
+    // Step 3: Use AI to select best recipes for each meal time
+    const selectedBreakfast = await this.selectRecipesWithAI(
+      breakfastRecipes,
+      `${mealPlanType} - Bữa sáng`,
+      duration
+    );
+    const selectedLunch = await this.selectRecipesWithAI(
+      lunchRecipes,
+      `${mealPlanType} - Bữa trưa`,
+      duration
+    );
+    const selectedDinner = await this.selectRecipesWithAI(
+      dinnerRecipes,
+      `${mealPlanType} - Bữa tối`,
       duration
     );
 
-    console.log(`🎯 Selected ${selectedRecipes.length} recipes for meal plan`);
+    console.log(
+      `🎯 AI selected: ${selectedBreakfast.length} breakfast, ${selectedLunch.length} lunch, ${selectedDinner.length} dinner`
+    );
 
-    // Step 4: Create 7-day meal plan structure
-    const mealPlan = this.createMealPlanStructure(selectedRecipes, duration);
+    // Step 4: Create intelligent 7-day meal plan structure (meal-time specific)
+    const mealPlan = this.createIntelligentMealPlanStructure(
+      selectedBreakfast,
+      selectedLunch,
+      selectedDinner,
+      duration
+    );
 
     return {
       success: true,
       mealPlanType,
       duration,
-      recipes: selectedRecipes,
       mealPlan,
-      totalRecipes: selectedRecipes.length
+      totalRecipes:
+        selectedBreakfast.length + selectedLunch.length + selectedDinner.length,
+      breakdown: {
+        breakfast: selectedBreakfast.length,
+        lunch: selectedLunch.length,
+        dinner: selectedDinner.length,
+      },
     };
   }
 
-  // Get search criteria based on meal plan type
+  // 🆕 Fetch recipes for specific meal time with intelligent filtering
+  async fetchRecipesForMeal(mealTime, criteria, mealPlanType) {
+    console.log(`🍽️ Fetching recipes for ${mealTime} with criteria:`, criteria);
+
+    // Build basic filters (calories, time, difficulty)
+    const filters = {};
+    if (criteria.maxCalories) filters.maxCalories = criteria.maxCalories;
+    if (criteria.minCalories) filters.minCalories = criteria.minCalories;
+    if (criteria.maxTime) filters.maxTime = criteria.maxTime;
+    if (criteria.difficulty) filters.difficulty = criteria.difficulty;
+
+    // Fetch initial recipes based on basic filters
+    const recipesResult = await dataFetchService.getRecipesByFilters(
+      filters,
+      200
+    );
+
+    if (
+      !recipesResult ||
+      !recipesResult.recipes ||
+      recipesResult.recipes.length === 0
+    ) {
+      console.log(`⚠️ No recipes found for ${mealTime} with basic filters`);
+      return [];
+    }
+
+    console.log(
+      `📦 Found ${recipesResult.recipes.length} recipes, now filtering by category/tags/ingredients...`
+    );
+
+    // Advanced filtering: category, tags, ingredients
+    let filteredRecipes = recipesResult.recipes.filter((recipe) => {
+      let score = 0;
+
+      // 1. Check CATEGORY (priority: exact match)
+      if (criteria.categories && criteria.categories.length > 0) {
+        const recipeCategoryLower =
+          recipe.category?.nameLowercase ||
+          recipe.category?.name?.toLowerCase() ||
+          "";
+        const matchesCategory = criteria.categories.some(
+          (cat) =>
+            recipeCategoryLower.includes(cat.toLowerCase()) ||
+            cat.toLowerCase().includes(recipeCategoryLower)
+        );
+        if (matchesCategory) score += 100;
+      }
+
+      // 2. Check TAGS (bonus points)
+      if (criteria.tags && criteria.tags.length > 0 && recipe.tags) {
+        const recipeTags = recipe.tags.map(
+          (tag) => tag.nameLowercase || tag.name?.toLowerCase() || ""
+        );
+        criteria.tags.forEach((criteriaTag) => {
+          if (
+            recipeTags.some((recipeTag) =>
+              recipeTag.includes(criteriaTag.toLowerCase())
+            )
+          ) {
+            score += 20;
+          }
+        });
+      }
+
+      // 3. Check PREFERRED INGREDIENTS (bonus points)
+      if (
+        criteria.preferredIngredients &&
+        criteria.preferredIngredients.length > 0 &&
+        recipe.ingredients
+      ) {
+        const recipeIngredients = recipe.ingredients.map(
+          (ing) => ing.nameLowercase || ing.name?.toLowerCase() || ""
+        );
+        criteria.preferredIngredients.forEach((prefIng) => {
+          if (
+            recipeIngredients.some((recipeIng) =>
+              recipeIng.includes(prefIng.toLowerCase())
+            )
+          ) {
+            score += 10;
+          }
+        });
+      }
+
+      // 4. Check AVOID INGREDIENTS (penalty/filter out)
+      if (
+        criteria.avoidIngredients &&
+        criteria.avoidIngredients.length > 0 &&
+        recipe.ingredients
+      ) {
+        const recipeIngredients = recipe.ingredients.map(
+          (ing) => ing.nameLowercase || ing.name?.toLowerCase() || ""
+        );
+        const hasAvoidedIngredient = criteria.avoidIngredients.some(
+          (avoidIng) =>
+            recipeIngredients.some((recipeIng) =>
+              recipeIng.includes(avoidIng.toLowerCase())
+            )
+        );
+        if (hasAvoidedIngredient) {
+          return false; // Filter out recipes with avoided ingredients
+        }
+      }
+
+      // Accept recipes with score > 0 (matched category/tags/ingredients)
+      // OR if no specific criteria (fallback)
+      return score > 0 || (!criteria.categories && !criteria.tags);
+    });
+
+    // Sort by rating (prefer high-rated recipes)
+    filteredRecipes.sort((a, b) => {
+      const rateA = a.rate || 0;
+      const rateB = b.rate || 0;
+      return rateB - rateA;
+    });
+
+    console.log(
+      `✅ Filtered to ${filteredRecipes.length} recipes for ${mealTime}`
+    );
+    return filteredRecipes;
+  }
+
+  // Get INTELLIGENT meal-specific criteria based on meal plan type and meal time
+  // ✅ ENHANCED VERSION: Thêm nhiều tags + criteria để AI chọn món chính xác hơn
   getMealPlanCriteria(mealPlanType) {
     const normalized = mealPlanType.toLowerCase();
-    
+
+    // 🎯 Define meal-time specific criteria for each user goal
+    //
+    // Categories (Loại bữa ăn - có trong DB):
+    //   - Bữa sáng, Bữa trưa, Bữa tối, Bữa chính, Bữa phụ, Tráng miệng
+    //
+    // Tags (Đặc điểm món ăn - EXPANDED với nhiều tags hơn):
+    //   - Dinh dưỡng: Protein cao, Chất xơ, Vitamin, Omega-3, Canxi, Sắt
+    //   - Mục đích: Giảm cân, Tăng cân, Tăng cơ, Gym, Healthy, Detox
+    //   - Cảm giác: Nhẹ nhàng, Mềm, Giòn, Béo ngậy, Thanh mát
+    //   - Độ khó: Nhanh, Dễ làm, Đơn giản, Phức tạp
+    //   - Tiêu hóa: Dễ tiêu, Dễ hấp thu, Không gây đầy hơi
+    //   - Sức khỏe: Ít calo, Ít đường, Ít muối, Ít dầu mỡ, Low carb, Keto
+    //   - Vị: Món cay, Món nước, Món ngọt, Món mặn, Món chua, Món đắng
+    //   - Loại: Món chay, Món mặn, Đường phố, Truyền thống, Hiện đại
+    //   - Đặc biệt: Cho trẻ em, Cho phụ nữ mang thai, Cho người bệnh
     const criteriaMap = {
-      'văn phòng': {
-        maxTime: 45,
-        difficulty: 'Dễ',
-        maxCalories: 600
+      // 👔 Người văn phòng: Nhanh, tiện, đủ năng lượng làm việc
+      "văn phòng": {
+        breakfast: {
+          maxTime: 20,
+          difficulty: "Dễ",
+          maxCalories: 400,
+          categories: ["Bữa sáng"],
+          tags: [
+            "Nhanh",
+            "Dễ làm",
+            "Đơn giản",
+            "Ít calo",
+            "Nhẹ nhàng",
+            "Protein cao",
+            "Dễ hấp thu",
+          ],
+          preferredIngredients: [
+            "trứng",
+            "bánh mì",
+            "yến mạch",
+            "sữa",
+            "chuối",
+            "bơ",
+          ],
+          avoidIngredients: ["dầu mỡ nhiều"],
+          description: "Bữa sáng nhanh gọn, đủ năng lượng để làm việc hiệu quả",
+        },
+        lunch: {
+          maxTime: 45,
+          maxCalories: 650,
+          categories: ["Bữa chính", "Bữa trưa"],
+          tags: ["Món mặn", "Dinh dưỡng", "Protein cao", "Chất xơ", "Vitamin"],
+          preferredIngredients: [
+            "thịt",
+            "cá",
+            "rau xanh",
+            "gạo lứt",
+            "đậu",
+            "nấm",
+          ],
+          avoidIngredients: ["đồ chiên nhiều"],
+          description:
+            "Bữa trưa đầy đủ chất, giúp tập trung làm việc buổi chiều",
+        },
+        dinner: {
+          maxTime: 30,
+          difficulty: "Dễ",
+          maxCalories: 500,
+          categories: ["Bữa tối", "Bữa phụ"],
+          tags: [
+            "Ít calo",
+            "Nhẹ nhàng",
+            "Dễ tiêu",
+            "Món nước",
+            "Thanh mát",
+            "Low carb",
+          ],
+          preferredIngredients: ["rau", "cá", "tôm", "thịt gà", "đậu phụ"],
+          avoidIngredients: ["thịt heo", "thịt bò", "cơm nhiều"],
+          description: "Bữa tối nhẹ nhàng, dễ tiêu để ngủ ngon",
+        },
       },
-      'ăn kiêng': {
-        maxCalories: 400,
-        difficulty: 'Dễ'
+      // 🥗 Ăn kiêng/Giảm cân: Ít calo, nhiều chất xơ, no lâu
+      "ăn kiêng": {
+        breakfast: {
+          maxTime: 20,
+          maxCalories: 300,
+          difficulty: "Dễ",
+          categories: ["Bữa sáng"],
+          tags: [
+            "Ít calo",
+            "Giảm cân",
+            "Healthy",
+            "Nhẹ nhàng",
+            "Chất xơ",
+            "Ít đường",
+            "Detox",
+          ],
+          preferredIngredients: [
+            "yến mạch",
+            "trứng",
+            "rau xanh",
+            "sữa tách béo",
+            "táo",
+            "bưởi",
+          ],
+          avoidIngredients: ["dầu ăn", "đường", "bơ", "bánh ngọt", "gạo trắng"],
+          description: "Bữa sáng ít calo nhưng no lâu, hỗ trợ giảm cân",
+        },
+        lunch: {
+          maxCalories: 400,
+          categories: ["Bữa trưa", "Bữa phụ"],
+          tags: [
+            "Ít calo",
+            "Giảm cán",
+            "Healthy",
+            "Chất xơ",
+            "Low carb",
+            "Protein cao",
+            "Món nước",
+          ],
+          preferredIngredients: [
+            "rau củ",
+            "cá lóc",
+            "ức gà",
+            "đậu phụ",
+            "nấm",
+            "canh",
+          ],
+          avoidIngredients: [
+            "thịt heo",
+            "thịt bò",
+            "dầu mỡ",
+            "cơm trắng",
+            "bún phở",
+          ],
+          description: "Bữa trưa đủ chất nhưng ít calo, no bụng không lo béo",
+        },
+        dinner: {
+          maxCalories: 300,
+          categories: ["Bữa tối", "Bữa phụ"],
+          tags: [
+            "Ít calo",
+            "Nhẹ nhàng",
+            "Dễ tiêu",
+            "Món nước",
+            "Thanh mát",
+            "Detox",
+            "Chất xơ",
+          ],
+          preferredIngredients: ["rau xanh", "tôm", "cá", "canh rau", "súp"],
+          avoidIngredients: ["thịt", "dầu mỡ", "tinh bột", "cơm", "mì"],
+          description: "Bữa tối rất nhẹ, chỉ rau và protein, giảm cân hiệu quả",
+        },
       },
-      'ăn chay': {
-        category: 'Món chay'
+      // 🌱 Ăn chay: Hoàn toàn thực vật, đủ protein, đa dạng
+      "ăn chay": {
+        breakfast: {
+          maxTime: 20,
+          categories: ["Bữa sáng"],
+          tags: [
+            "Món chay",
+            "Healthy",
+            "Nhẹ nhàng",
+            "Protein cao",
+            "Chất xơ",
+            "Vitamin",
+          ],
+          preferredIngredients: [
+            "đậu phụ",
+            "đậu nành",
+            "rau xanh",
+            "nấm",
+            "yến mạch",
+            "hạt chia",
+            "sữa đậu nành",
+          ],
+          avoidIngredients: ["thịt", "cá", "tôm", "trứng", "sữa bò", "mật ong"],
+          description:
+            "Bữa sáng chay đầy đủ protein thực vật, năng lượng cho ngày mới",
+        },
+        lunch: {
+          categories: ["Bữa chính", "Bữa trưa"],
+          tags: [
+            "Món chay",
+            "Dinh dưỡng",
+            "Protein cao",
+            "Chất xơ",
+            "Sắt",
+            "Vitamin",
+          ],
+          preferredIngredients: [
+            "đậu phụ",
+            "nấm các loại",
+            "rau củ",
+            "gạo lứt",
+            "đậu",
+            "hạt",
+          ],
+          avoidIngredients: ["thịt", "cá", "tôm", "trứng", "ngũ cốc", "mắm"],
+          description: "Bữa trưa chay đa dạng, đủ chất dinh dưỡng",
+        },
+        dinner: {
+          categories: ["Bữa tối", "Bữa phụ"],
+          tags: ["Món chay", "Nhẹ nhàng", "Món nước", "Dễ tiêu", "Thanh mát"],
+          preferredIngredients: [
+            "rau xanh",
+            "nấm",
+            "đậu phụ",
+            "canh rau",
+            "súp nấm",
+          ],
+          avoidIngredients: ["thịt", "cá", "tôm", "trứng", "sữa động vật"],
+          description: "Bữa tối chay thanh đạm, dễ tiêu",
+        },
       },
-      'tăng cân': {
-        minCalories: 600
+      // 💪 Tăng cân lành mạnh: Calories cao, protein, carb tốt
+      "tăng cân": {
+        breakfast: {
+          minCalories: 550,
+          categories: ["Bữa sáng", "Bữa chính"],
+          tags: [
+            "Tăng cân",
+            "Calories cao",
+            "Dinh dưỡng",
+            "Protein cao",
+            "Béo ngậy",
+          ],
+          preferredIngredients: [
+            "trứng",
+            "thịt",
+            "bơ",
+            "sữa tươi",
+            "phô mai",
+            "yến mạch",
+            "chuối",
+            "hạt",
+          ],
+          avoidIngredients: ["đồ ăn nhanh"],
+          description: "Bữa sáng giàu calo lành mạnh, protein cao",
+        },
+        lunch: {
+          minCalories: 750,
+          categories: ["Bữa chính", "Bữa trưa"],
+          tags: [
+            "Tăng cân",
+            "Calories cao",
+            "Protein cao",
+            "Món mặn",
+            "Dinh dưỡng",
+            "Béo ngậy",
+          ],
+          preferredIngredients: [
+            "thịt bò",
+            "cá hồi",
+            "gạo",
+            "khoai lang",
+            "bơ",
+            "dầu olive",
+          ],
+          avoidIngredients: ["đồ chiên nhiều dầu"],
+          description: "Bữa trưa đầy đủ calories từ nguồn lành mạnh",
+        },
+        dinner: {
+          minCalories: 650,
+          categories: ["Bữa chính", "Bữa tối"],
+          tags: ["Tăng cân", "Protein cao", "Món mặn", "Dinh dưỡng"],
+          preferredIngredients: [
+            "thịt",
+            "cá",
+            "thịt gà",
+            "gạo",
+            "khoai",
+            "trứng",
+          ],
+          avoidIngredients: ["đồ cay quá"],
+          description: "Bữa tối protein cao, carb tốt để tăng cân",
+        },
       },
-      'tiểu đường': {
-        maxCalories: 500
+      // 🩺 Tiểu đường: Ít đường, low GI, kiểm soát đường huyết
+      "tiểu đường": {
+        breakfast: {
+          maxCalories: 400,
+          maxTime: 25,
+          categories: ["Bữa sáng"],
+          tags: [
+            "Ít đường",
+            "Ít calo",
+            "Healthy",
+            "Chất xơ",
+            "Low carb",
+            "Protein cao",
+          ],
+          preferredIngredients: [
+            "trứng",
+            "rau xanh",
+            "đậu phụ",
+            "yến mạch ít đường",
+            "cá",
+            "hạt",
+          ],
+          avoidIngredients: [
+            "đường",
+            "mật ong",
+            "gạo trắng",
+            "bánh mì trắng",
+            "khoai tây",
+            "trái cây ngọt",
+          ],
+          description: "Bữa sáng kiểm soát đường huyết, chỉ số GI thấp",
+        },
+        lunch: {
+          maxCalories: 500,
+          categories: ["Bữa trưa", "Bữa phụ"],
+          tags: [
+            "Ít đường",
+            "Ít calo",
+            "Healthy",
+            "Protein cao",
+            "Chất xơ",
+            "Low carb",
+          ],
+          preferredIngredients: [
+            "cá lóc",
+            "ức gà",
+            "rau xanh",
+            "đậu phụ",
+            "gạo lứt ít",
+          ],
+          avoidIngredients: [
+            "đường",
+            "cơm trắng",
+            "bún phở",
+            "khoai tây",
+            "nước ngọt",
+          ],
+          description: "Bữa trưa ít tinh bột, nhiều rau protein",
+        },
+        dinner: {
+          maxCalories: 400,
+          categories: ["Bữa tối", "Bữa phụ"],
+          tags: ["Ít đường", "Dễ tiêu", "Món nước", "Nhẹ nhàng", "Low carb"],
+          preferredIngredients: ["rau xanh", "cá lóc", "tôm", "canh rau"],
+          avoidIngredients: ["đường", "tinh bột", "cơm", "mì", "trái cây ngọt"],
+          description: "Bữa tối rất nhẹ, tránh tinh bột và đường",
+        },
       },
-      'người bận rộn': {
-        maxTime: 30,
-        difficulty: 'Dễ'
+      // ⏰ Người bận rộn: Nhanh, đơn giản, tiện lợi
+      "người bận rộn": {
+        breakfast: {
+          maxTime: 15,
+          difficulty: "Dễ",
+          categories: ["Bữa sáng"],
+          tags: ["Nhanh", "Dễ làm", "Đơn giản", "Tiện lợi", "Dinh dưỡng"],
+          preferredIngredients: [
+            "trứng",
+            "bánh mì",
+            "sữa",
+            "yến mạch",
+            "chuối",
+            "sữa chua",
+          ],
+          avoidIngredients: ["nguyên liệu phức tạp"],
+          description: "Bữa sáng siêu nhanh, dưới 15 phút",
+        },
+        lunch: {
+          maxTime: 30,
+          difficulty: "Dễ",
+          categories: ["Bữa chính", "Bữa trưa"],
+          tags: ["Nhanh", "Dễ làm", "Đơn giản", "Món mặn", "Dinh dưỡng"],
+          preferredIngredients: [
+            "thịt băm",
+            "cá phi lê",
+            "gạo",
+            "rau sẵn",
+            "trứng",
+          ],
+          avoidIngredients: ["nguyên liệu cần sơ chế lâu"],
+          description: "Bữa trưa nhanh gọn, đủ chất",
+        },
+        dinner: {
+          maxTime: 20,
+          difficulty: "Dễ",
+          categories: ["Bữa phụ", "Bữa tối"],
+          tags: ["Nhanh", "Dễ làm", "Đơn giản", "Món nước", "Nhẹ nhàng"],
+          preferredIngredients: ["rau", "thịt gà", "tôm", "canh nhanh"],
+          avoidIngredients: ["món cần nấu lâu"],
+          description: "Bữa tối cực nhanh, dễ dọn dẹp",
+        },
       },
-      'người già': {
-        difficulty: 'Dễ',
-        maxTime: 45
+      // 👴 Người cao tuổi: Mềm, dễ tiêu, dễ nhai, nhiều dinh dưỡng
+      "người già": {
+        breakfast: {
+          maxTime: 30,
+          difficulty: "Dễ",
+          categories: ["Bữa sáng"],
+          tags: [
+            "Dễ tiêu",
+            "Mềm",
+            "Dinh dưỡng",
+            "Món nước",
+            "Canxi",
+            "Vitamin",
+            "Dễ hấp thu",
+          ],
+          preferredIngredients: [
+            "cháo",
+            "trứng",
+            "sữa",
+            "cá lóc",
+            "đậu phụ mềm",
+            "yến mạch",
+          ],
+          avoidIngredients: ["đồ cứng", "đồ dai", "đồ cay"],
+          description: "Bữa sáng mềm mịn, dễ nhai, giàu canxi",
+        },
+        lunch: {
+          maxTime: 45,
+          difficulty: "Dễ",
+          categories: ["Bữa chính", "Bữa trưa"],
+          tags: [
+            "Dễ tiêu",
+            "Mềm",
+            "Dinh dưỡng",
+            "Món nước",
+            "Protein cao",
+            "Omega-3",
+            "Vitamin",
+          ],
+          preferredIngredients: [
+            "cá lóc",
+            "tôm",
+            "rau mềm",
+            "đậu phụ",
+            "canh",
+            "súp",
+          ],
+          avoidIngredients: ["thịt dai", "đồ chiên giòn", "cay nồng"],
+          description: "Bữa trưa mềm, đầy đủ chất, dễ tiêu hóa",
+        },
+        dinner: {
+          maxTime: 30,
+          difficulty: "Dễ",
+          categories: ["Bữa tối", "Bữa phụ"],
+          tags: ["Dễ tiêu", "Nhẹ nhàng", "Món nước", "Mềm", "Thanh mát"],
+          preferredIngredients: [
+            "rau luộc",
+            "cá lóc",
+            "tôm",
+            "canh nhạt",
+            "cháo loãng",
+          ],
+          avoidIngredients: ["thịt heo", "thịt bò", "đồ cứng", "đồ cay"],
+          description: "Bữa tối rất nhẹ, mềm, dễ tiêu để ngủ ngon",
+        },
       },
-      'thể hình': {
-        minCalories: 500
-      }
+      // 🏋️ Tập gym/Thể hình: Protein cực cao, carb tốt, ít mỡ
+      "thể hình": {
+        breakfast: {
+          minCalories: 550,
+          categories: ["Bữa sáng", "Bữa chính"],
+          tags: ["Protein cao", "Tăng cơ", "Gym", "Dinh dưỡng", "Ít dầu mỡ"],
+          preferredIngredients: [
+            "trứng trắng",
+            "ức gà",
+            "yến mạch",
+            "chuối",
+            "sữa protein",
+            "bơ đậu phộng",
+          ],
+          avoidIngredients: ["đồ chiên", "mỡ nhiều"],
+          description: "Bữa sáng protein cao, carb tốt cho tập luyện",
+        },
+        lunch: {
+          minCalories: 800,
+          categories: ["Bữa chính", "Bữa trưa"],
+          tags: [
+            "Protein cao",
+            "Tăng cơ",
+            "Gym",
+            "Món mặn",
+            "Dinh dưỡng",
+            "Ít dầu mỡ",
+          ],
+          preferredIngredients: [
+            "ức gà",
+            "thịt bò nạc",
+            "cá hồi",
+            "gạo lứt",
+            "khoai lang",
+            "trứng",
+            "rau xanh",
+          ],
+          avoidIngredients: ["dầu mỡ nhiều", "đồ chiên"],
+          description: "Bữa trưa protein cực cao, carb phức hợp cho tăng cơ",
+        },
+        dinner: {
+          minCalories: 600,
+          categories: ["Bữa chính", "Bữa tối"],
+          tags: ["Protein cao", "Tăng cơ", "Món mặn", "Ít dầu mỡ", "Low carb"],
+          preferredIngredients: [
+            "ức gà",
+            "cá",
+            "thịt bò nạc",
+            "rau xanh",
+            "trứng",
+          ],
+          avoidIngredients: ["dầu mỡ", "đường", "tinh bột nhiều"],
+          description: "Bữa tối protein cao, ít carb cho phục hồi cơ",
+        },
+      },
+
+      // 🤰 Phụ nữ mang thai: Dinh dưỡng cao, an toàn, đủ chất
+      "mang thai": {
+        breakfast: {
+          maxTime: 25,
+          categories: ["Bữa sáng"],
+          tags: [
+            "Dinh dưỡng",
+            "Vitamin",
+            "Canxi",
+            "Sắt",
+            "Dễ tiêu",
+            "Nhẹ nhàng",
+          ],
+          preferredIngredients: [
+            "trứng",
+            "sữa",
+            "yến mạch",
+            "rau xanh",
+            "trái cây",
+            "hạt",
+          ],
+          avoidIngredients: ["đồ sống", "rượu", "cafe nhiều", "đồ cay nồng"],
+          description: "Bữa sáng đầy đủ dinh dưỡng cho mẹ và bé",
+        },
+        lunch: {
+          categories: ["Bữa chính", "Bữa trưa"],
+          tags: [
+            "Dinh dưỡng",
+            "Protein cao",
+            "Sắt",
+            "Canxi",
+            "Vitamin",
+            "Omega-3",
+          ],
+          preferredIngredients: [
+            "cá hồi",
+            "thịt nạc",
+            "rau xanh",
+            "đậu",
+            "gạo lứt",
+            "sữa",
+          ],
+          avoidIngredients: ["đồ sống", "gan", "cá ngừ", "rượu"],
+          description: "Bữa trưa giàu sắt, canxi, omega-3 cho thai nhi",
+        },
+        dinner: {
+          categories: ["Bữa tối", "Bữa phụ"],
+          tags: ["Nhẹ nhàng", "Dễ tiêu", "Dinh dưỡng", "Vitamin", "Món nước"],
+          preferredIngredients: ["cá", "tôm", "rau", "canh", "đậu phụ"],
+          avoidIngredients: ["đồ cay", "đồ chiên", "cafe"],
+          description: "Bữa tối nhẹ nhàng, dễ tiêu, tránh ợ nóng",
+        },
+      },
+
+      // 🧒 Trẻ em: Hấp dẫn, dễ ăn, giàu dinh dưỡng
+      "trẻ em": {
+        breakfast: {
+          maxTime: 20,
+          categories: ["Bữa sáng"],
+          tags: [
+            "Dinh dưỡng",
+            "Dễ ăn",
+            "Canxi",
+            "Vitamin",
+            "Protein cao",
+            "Hấp dẫn",
+          ],
+          preferredIngredients: [
+            "trứng",
+            "sữa",
+            "bánh mì",
+            "phô mai",
+            "chuối",
+            "yến mạch",
+          ],
+          avoidIngredients: ["đồ cay", "cafe", "đồ quá mặn"],
+          description: "Bữa sáng bổ dưỡng, hấp dẫn để bé thích ăn",
+        },
+        lunch: {
+          categories: ["Bữa chính", "Bữa trưa"],
+          tags: [
+            "Dinh dưỡng",
+            "Protein cao",
+            "Canxi",
+            "Vitamin",
+            "Dễ ăn",
+            "Hấp dẫn",
+          ],
+          preferredIngredients: [
+            "thịt",
+            "cá",
+            "trứng",
+            "rau củ",
+            "gạo",
+            "phô mai",
+          ],
+          avoidIngredients: ["đồ cay", "xương nhiều", "đồ quá cứng"],
+          description: "Bữa trưa đầy đủ chất cho trẻ phát triển",
+        },
+        dinner: {
+          categories: ["Bữa tối", "Bữa phụ"],
+          tags: ["Nhẹ nhàng", "Dễ tiêu", "Dinh dưỡng", "Dễ ăn", "Món nước"],
+          preferredIngredients: ["thịt gà", "cá", "rau", "canh", "cháo"],
+          avoidIngredients: ["đồ cay", "đồ cứng", "xương nhiều"],
+          description: "Bữa tối mềm, nhẹ để bé ngủ ngon",
+        },
+      },
+
+      // 🎓 Học sinh/Sinh viên: Giá rẻ, nhanh, đủ chất
+      "học sinh": {
+        breakfast: {
+          maxTime: 15,
+          difficulty: "Dễ",
+          categories: ["Bữa sáng"],
+          tags: ["Nhanh", "Dễ làm", "Dinh dưỡng", "Giá rẻ", "Tiện lợi"],
+          preferredIngredients: ["trứng", "bánh mì", "sữa", "cháo", "mì"],
+          avoidIngredients: ["nguyên liệu đắt"],
+          description: "Bữa sáng nhanh gọn, rẻ, đủ năng lượng học tập",
+        },
+        lunch: {
+          maxTime: 30,
+          categories: ["Bữa chính", "Bữa trưa"],
+          tags: ["Dễ làm", "Món mặn", "Dinh dưỡng", "Giá rẻ", "Tiện lợi"],
+          preferredIngredients: ["thịt", "cá", "gạo", "rau", "trứng"],
+          avoidIngredients: ["nguyên liệu đắt tiền"],
+          description: "Bữa trưa đơn giản, rẻ, đủ chất",
+        },
+        dinner: {
+          maxTime: 25,
+          categories: ["Bữa phụ", "Bữa tối"],
+          tags: ["Nhanh", "Dễ làm", "Món nước", "Giá rẻ"],
+          preferredIngredients: ["rau", "thịt", "mì", "canh đơn giản"],
+          avoidIngredients: ["nguyên liệu phức tạp"],
+          description: "Bữa tối đơn giản, tiết kiệm",
+        },
+      },
+
+      // 💼 Dân văn phòng cao cấp: Healthy, organic, chất lượng cao
+      "cao cấp": {
+        breakfast: {
+          maxTime: 30,
+          categories: ["Bữa sáng"],
+          tags: ["Healthy", "Organic", "Dinh dưỡng", "Cao cấp", "Tinh tế"],
+          preferredIngredients: [
+            "trứng gà ta",
+            "bơ",
+            "cá hồi",
+            "yến mạch organic",
+            "sữa hạt",
+            "trái cây nhập",
+          ],
+          avoidIngredients: ["đồ chế biến sẵn"],
+          description: "Bữa sáng cao cấp, organic, healthy",
+        },
+        lunch: {
+          categories: ["Bữa chính", "Bữa trưa"],
+          tags: [
+            "Healthy",
+            "Organic",
+            "Dinh dưỡng",
+            "Cao cấp",
+            "Tinh tế",
+            "Protein cao",
+          ],
+          preferredIngredients: [
+            "thịt bò Úc",
+            "cá hồi",
+            "rau organic",
+            "gạo lứt hữu cơ",
+          ],
+          avoidIngredients: ["đồ đông lạnh"],
+          description: "Bữa trưa cao cấp, nguyên liệu tươi sống",
+        },
+        dinner: {
+          categories: ["Bữa tối"],
+          tags: ["Healthy", "Nhẹ nhàng", "Cao cấp", "Tinh tế", "Dễ tiêu"],
+          preferredIngredients: [
+            "cá tươi",
+            "tôm hùm",
+            "rau organic",
+            "súp cao cấp",
+          ],
+          avoidIngredients: ["đồ rẻ tiền"],
+          description: "Bữa tối sang trọng, nhẹ nhàng",
+        },
+      },
     };
 
-    return criteriaMap[normalized] || { difficulty: 'Dễ' };
+    return (
+      criteriaMap[normalized] || {
+        breakfast: {
+          difficulty: "Dễ",
+          maxTime: 30,
+          categories: ["Bữa sáng"],
+          tags: [],
+        },
+        lunch: {
+          difficulty: "Dễ",
+          maxTime: 45,
+          categories: ["Bữa chính", "Bữa trưa"],
+          tags: [],
+        },
+        dinner: {
+          difficulty: "Dễ",
+          maxTime: 30,
+          categories: ["Bữa tối"],
+          tags: [],
+        },
+      }
+    );
   }
 
-  // Use AI to intelligently select recipes
-  async selectRecipesWithAI(allRecipes, mealPlanType, duration) {
-    const needed = duration * 3; // 7 days x 3 meals = 21
+  // Use AI to intelligently select recipes (meal-time specific)
+  async selectRecipesWithAI(allRecipes, mealContext, duration) {
+    const needed = duration; // For specific meal time (e.g., 7 breakfast recipes for 7 days)
 
     // If we have enough recipes, use AI to select best ones
     if (allRecipes.length >= needed) {
-      console.log('🤖 Using AI to select best recipes...');
-      
+      console.log(
+        `🤖 Using AI to select best ${needed} recipes for: ${mealContext}`
+      );
+
       const selectionPrompt = `
-Bạn là chuyên gia dinh dưỡng. Từ danh sách ${allRecipes.length} công thức dưới đây, 
-hãy chọn ${needed} công thức phù hợp nhất cho meal plan "${mealPlanType}".
+🤖 BẠN LÀ CHUYÊN GIA DINH DƯỠNG VÀ ẨM THỰC
 
-Tiêu chí chọn:
-- Đa dạng món ăn (không lặp quá nhiều)
-- Cân bằng dinh dưỡng
-- Phù hợp với mục đích: ${mealPlanType}
-- Ưu tiên món có rating cao
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 NHIỆM VỤ: Chọn ${needed} món ăn TỐT NHẤT cho "${mealContext}"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Danh sách công thức (top 50):
-${allRecipes.slice(0, 50).map((r, idx) => 
-  `${idx + 1}. ${r._id} | ${r.name} | ${r.rate || 0}/5 | ${r.time}m | ${r.calories || 'N/A'}cal | ${r.difficulty}`
-).join('\n')}
+📋 DANH SÁCH ${allRecipes.length} MÓN ĂN SẴN CÓ (Top ${Math.min(
+        50,
+        allRecipes.length
+      )}):
+${allRecipes
+  .slice(0, 50)
+  .map((r, idx) => {
+    const tags = r.tags ? r.tags.map((t) => t.name || t).join(", ") : "";
+    const category = r.category ? r.category.name || r.category : "";
+    return `${idx + 1}. ${r._id} | ${r.name} | ⭐${r.rate || 0}/5 | ⏱${
+      r.time
+    }m | 🔥${r.calories || "N/A"}cal | ${
+      r.difficulty
+    } | 📁${category} | 🏷️${tags}`;
+  })
+  .join("\n")}
 
-Trả về JSON array với ${needed} ID công thức được chọn (chỉ trả JSON, không có text khác):
-["id1", "id2", "id3", ...]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ TIÊU CHÍ CHỌN MÓN (QUAN TRỌNG):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. ⭐ RATING CAO: Ưu tiên món có rating ≥ 4.0 sao
+2. 🎨 ĐA DẠNG: Chọn món KHÁC NHAU cho ${needed} ngày - KHÔNG lặp lại món giống nhau
+3. 🍽️ PHÙ HỢP BỮA ĂN: Phải match với "${mealContext}"
+   • Bữa sáng: Nhẹ, nhanh, protein + carb (trứng, bánh mì, cháo, phở...)
+   • Bữa trưa: Đầy đủ, chính món (cơm, thịt, cá, rau...)
+   • Bữa tối: Nhẹ, dễ tiêu, không quá no (canh, xào rau, hấp...)
+
+4. ⚖️ CÂN BẰNG DINH DƯỠNG qua ${needed} món:
+   • Protein (Thịt/Cá/Trứng): 40%
+   • Rau củ: 30%
+   • Carb (Cơm/Bún/Mì): 25%
+   • Khác: 5%
+
+5. 🌈 ĐA DẠNG:
+   • Nguyên liệu chính khác nhau (gà, bò, heo, cá, tôm, đậu...)
+   • Cách chế biến khác nhau (xào, nấu, hấp, chiên, nướng...)
+   • Quốc gia/ẩm thực khác nhau (Việt, Hàn, Nhật, Ý...)
+
+6. ⏰ THỜI GIAN HỢP LÝ:
+   • Bữa sáng: < 30 phút
+   • Bữa trưa: 30-60 phút
+   • Bữa tối: < 45 phút
+
+7. 🔥 ĐỘ KHÓ: Ưu tiên "Dễ" (60%), "Trung bình" (30%), "Khó" (10%)
+
+8. 🏷️ TAGS PHÙ HỢP: Chọn món có tags match với meal context
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📤 ĐỊNH DẠNG TRẢ VỀ:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Trả về ĐÚNG ${needed} ID món ăn dưới dạng JSON array (CHỈ JSON, KHÔNG text khác):
+
+["id1", "id2", "id3", "id4", "id5", "id6", "id7"]
+
+⚠️ LƯU Ý:
+- Phải chọn ĐÚNG ${needed} món
+- Mỗi ID chỉ xuất hiện 1 LẦN
+- KHÔNG thêm giải thích
+- CHỈ JSON array thuần túy
 `;
 
       try {
         const result = await this.model.generateContent(selectionPrompt);
         const response = await result.response;
         const text = response.text();
-        
+
         const jsonMatch = text.match(/\[[\s\S]*?\]/);
         if (jsonMatch) {
           const selectedIds = JSON.parse(jsonMatch[0]);
-          const selected = allRecipes.filter(r => selectedIds.includes(r._id)).slice(0, needed);
-          console.log(`✅ AI selected ${selected.length} recipes`);
+          const selected = allRecipes
+            .filter((r) => selectedIds.includes(r._id))
+            .slice(0, needed);
+          console.log(
+            `✅ AI selected ${selected.length}/${needed} recipes for ${mealContext}`
+          );
           return selected;
         }
       } catch (error) {
-        console.error('⚠️ Error selecting recipes with AI:', error.message);
+        console.error(
+          `⚠️ Error selecting recipes with AI for ${mealContext}:`,
+          error.message
+        );
       }
     }
 
     // Fallback: Smart random selection
-    console.log('🎲 Using smart random selection...');
+    console.log(`🎲 Using smart random selection for ${mealContext}...`);
     return this.smartRandomSelection(allRecipes, needed);
   }
 
   // Smart random selection (fallback)
   smartRandomSelection(recipes, needed) {
     const shuffled = [...recipes].sort(() => Math.random() - 0.5);
-    
+
     // If not enough unique recipes, allow repeats
     if (shuffled.length < needed) {
-      console.log(`⚠️ Only ${shuffled.length} recipes available, will repeat some`);
+      console.log(
+        `⚠️ Only ${shuffled.length} recipes available, will repeat some`
+      );
       const result = [...shuffled];
       while (result.length < needed) {
-        const randomRecipe = shuffled[Math.floor(Math.random() * shuffled.length)];
+        const randomRecipe =
+          shuffled[Math.floor(Math.random() * shuffled.length)];
         result.push(randomRecipe);
       }
       return result;
@@ -471,42 +1544,108 @@ Trả về JSON array với ${needed} ID công thức được chọn (chỉ tr�
     return shuffled.slice(0, needed);
   }
 
-  // Create 7-day meal plan structure (without dates - FE will add when user selects startDate)
-  createMealPlanStructure(recipes, duration = 7) {
-    const mealTypes = ['morning', 'noon', 'evening'];
+  // 🆕 Create INTELLIGENT 7-day meal plan structure (meal-time specific)
+  // ✅ UPDATED: Return structure phù hợp với MealPlanSchema (morning/noon/evening, NO date)
+  // Frontend sẽ add date khi user chọn startDate
+  createIntelligentMealPlanStructure(
+    breakfastRecipes,
+    lunchRecipes,
+    dinnerRecipes,
+    duration = 7
+  ) {
     const plans = [];
-    
+
     for (let day = 0; day < duration; day++) {
       const dayPlan = {
         // ❌ NO DATE - FE will add based on user's selected startDate
         morning: {},
         noon: {},
-        evening: {}
+        evening: {},
       };
-      
+
+      // Breakfast
+      const breakfastRecipe = breakfastRecipes[day % breakfastRecipes.length];
+      if (breakfastRecipe) {
+        dayPlan.morning = {
+          recipeId: breakfastRecipe._id.toString(), // Convert ObjectId to String
+          recipeName: breakfastRecipe.name,
+          recipeImage: breakfastRecipe.image,
+        };
+      }
+
+      // Lunch
+      const lunchRecipe = lunchRecipes[day % lunchRecipes.length];
+      if (lunchRecipe) {
+        dayPlan.noon = {
+          recipeId: lunchRecipe._id.toString(), // Convert ObjectId to String
+          recipeName: lunchRecipe.name,
+          recipeImage: lunchRecipe.image,
+        };
+      }
+
+      // Dinner
+      const dinnerRecipe = dinnerRecipes[day % dinnerRecipes.length];
+      if (dinnerRecipe) {
+        dayPlan.evening = {
+          recipeId: dinnerRecipe._id.toString(), // Convert ObjectId to String
+          recipeName: dinnerRecipe.name,
+          recipeImage: dinnerRecipe.image,
+        };
+      }
+
+      plans.push(dayPlan);
+    }
+
+    console.log(
+      `✅ Created INTELLIGENT ${plans.length} days meal plan (morning/noon/evening structure, NO date)`
+    );
+    return plans;
+  }
+
+  // Create 7-day meal plan structure (without dates - FE will add when user selects startDate)
+  // ⚠️ DEPRECATED - Use createIntelligentMealPlanStructure instead
+  createMealPlanStructure(recipes, duration = 7) {
+    const mealTypes = ["morning", "noon", "evening"];
+    const plans = [];
+
+    for (let day = 0; day < duration; day++) {
+      const dayPlan = {
+        // ❌ NO DATE - FE will add based on user's selected startDate
+        morning: {},
+        noon: {},
+        evening: {},
+      };
+
       for (let mealIndex = 0; mealIndex < 3; mealIndex++) {
         const recipeIndex = day * 3 + mealIndex;
         const recipe = recipes[recipeIndex];
-        
+
         if (recipe) {
           dayPlan[mealTypes[mealIndex]] = {
             recipeId: recipe._id,
             recipeName: recipe.name,
-            recipeImage: recipe.image
+            recipeImage: recipe.image,
           };
         }
         // else: already initialized as empty object
       }
-      
+
       plans.push(dayPlan);
     }
-    
-    console.log(`✅ Created ${plans.length} days meal plan structure (without dates)`);
+
+    console.log(
+      `✅ Created ${plans.length} days meal plan structure (without dates)`
+    );
     return plans;
   }
 
   // Generate response using Gemini with context
-  async generateResponse(userMessage, relevantData, conversationHistory = [], imageUrl = null) {
+  async generateResponse(
+    userMessage,
+    relevantData,
+    conversationHistory = [],
+    imageUrl = null
+  ) {
     let contextPrompt = `Bạn là trợ lý ảo thông minh của ứng dụng nấu ăn Kooka. 
 Nhiệm vụ của bạn là giúp người dùng tìm kiếm công thức nấu ăn, gợi ý món ăn, trả lời câu hỏi về nấu ăn.
 
@@ -524,21 +1663,24 @@ QUAN TRỌNG - Quy tắc trả lời:
 
     // Add conversation history (only last 2 exchanges to save tokens)
     if (conversationHistory.length > 0) {
-      contextPrompt += '\n### Lịch sử hội thoại:\n';
+      contextPrompt += "\n### Lịch sử hội thoại:\n";
       const recentHistory = conversationHistory.slice(-4); // Last 2 exchanges
-      recentHistory.forEach(msg => {
-        contextPrompt += `${msg.role === 'user' ? 'Người dùng' : 'Trợ lý'}: ${msg.content}\n`;
+      recentHistory.forEach((msg) => {
+        contextPrompt += `${msg.role === "user" ? "Người dùng" : "Trợ lý"}: ${
+          msg.content
+        }\n`;
       });
     }
 
     // Add image analysis if available
     if (relevantData.imageAnalysis) {
-      contextPrompt += '\n### Phân tích ảnh món ăn:\n';
+      contextPrompt += "\n### Phân tích ảnh món ăn:\n";
       contextPrompt += JSON.stringify(relevantData.imageAnalysis, null, 2);
-      
+
       if (relevantData.foundInDatabase === false) {
         contextPrompt += `\n\nMón "${relevantData.searchedDishName}" KHÔNG CÓ trong database của Kooka.\n`;
-        contextPrompt += 'Hãy lịch sự thông báo và chia sẻ thông tin về món ăn này dựa trên ảnh và kiến thức của bạn.\n';
+        contextPrompt +=
+          "Hãy lịch sự thông báo và chia sẻ thông tin về món ăn này dựa trên ảnh và kiến thức của bạn.\n";
       } else if (relevantData.foundInDatabase === true) {
         contextPrompt += `\n\nMón "${relevantData.recipe.name}" CÓ trong database! Hãy sử dụng thông tin chi tiết bên dưới.\n`;
       }
@@ -546,29 +1688,37 @@ QUAN TRỌNG - Quy tắc trả lời:
 
     // Add relevant data if available (summarize if too long)
     if (Object.keys(relevantData).length > 0) {
-      contextPrompt += '\n### Dữ liệu liên quan:\n';
+      contextPrompt += "\n### Dữ liệu liên quan:\n";
 
       // Handle generated meal plan
       if (relevantData.generatedMealPlan) {
         const mealPlanData = relevantData.generatedMealPlan;
         if (mealPlanData.success) {
-          contextPrompt += JSON.stringify({
-            mealPlanGenerated: true,
-            type: mealPlanData.mealPlanType,
-            totalRecipes: mealPlanData.totalRecipes,
-            duration: mealPlanData.duration
-          }, null, 2);
-          
-          contextPrompt += '\n\n✅ Đã tạo meal plan thành công! Hãy thông báo với người dùng rằng meal plan đã được tạo và hướng dẫn họ nhấn vào nút "Xem Meal Plan" bên dưới để xem chi tiết. KHÔNG liệt kê các món ăn. Chỉ cần thông báo thành công và khuyến khích họ xem chi tiết.';
+          contextPrompt += JSON.stringify(
+            {
+              mealPlanGenerated: true,
+              type: mealPlanData.mealPlanType,
+              totalRecipes: mealPlanData.totalRecipes,
+              duration: mealPlanData.duration,
+            },
+            null,
+            2
+          );
+
+          contextPrompt +=
+            '\n\n✅ Đã tạo meal plan thành công! Hãy thông báo với người dùng rằng meal plan đã được tạo và hướng dẫn họ nhấn vào nút "Xem Meal Plan" bên dưới để xem chi tiết. KHÔNG liệt kê các món ăn. Chỉ cần thông báo thành công và khuyến khích họ xem chi tiết.';
         } else {
-          contextPrompt += '\n\n❌ Không thể tạo meal plan. Hãy xin lỗi người dùng và đề xuất họ thử lại với tiêu chí khác hoặc chọn loại meal plan khác.';
+          contextPrompt +=
+            "\n\n❌ Không thể tạo meal plan. Hãy xin lỗi người dùng và đề xuất họ thử lại với tiêu chí khác hoặc chọn loại meal plan khác.";
         }
       }
       // Handle recipe not found case
       else if (relevantData.recipeNotFound) {
         contextPrompt += `\nMón "${relevantData.searchedRecipeName}" KHÔNG CÓ trong database của Kooka.\n`;
-        contextPrompt += 'Hãy lịch sự thông báo với người dùng rằng hiện tại ứng dụng chưa có công thức này, ';
-        contextPrompt += 'nhưng bạn có thể chia sẻ một số thông tin chung về món ăn này dựa trên kiến thức của bạn (ngắn gọn).\n';
+        contextPrompt +=
+          "Hãy lịch sự thông báo với người dùng rằng hiện tại ứng dụng chưa có công thức này, ";
+        contextPrompt +=
+          "nhưng bạn có thể chia sẻ một số thông tin chung về món ăn này dựa trên kiến thức của bạn (ngắn gọn).\n";
       }
       // Handle single recipe details
       else if (relevantData.recipe) {
@@ -582,69 +1732,82 @@ QUAN TRỌNG - Quy tắc trả lời:
           size: recipe.size,
           cuisine: recipe.cuisine?.name || null,
           category: recipe.category?.name || null,
-          ingredients: recipe.ingredients?.map(i => ({
-            name: i.name,
-            quantity: i.quantity || null
-          })) || [],
-          instructions: recipe.instructions?.map((inst, idx) => ({
-            step: idx + 1,
-            title: inst.title,
-            subTitle: inst.subTitle
-          })) || [],
+          ingredients:
+            recipe.ingredients?.map((i) => ({
+              name: i.name,
+              quantity: i.quantity || null,
+            })) || [],
+          instructions:
+            recipe.instructions?.map((inst, idx) => ({
+              step: idx + 1,
+              title: inst.title,
+              subTitle: inst.subTitle,
+            })) || [],
           video: recipe.video || null,
           rate: recipe.rate || 0,
-          numberOfRate: recipe.numberOfRate || 0
+          numberOfRate: recipe.numberOfRate || 0,
         };
-        
+
         contextPrompt += JSON.stringify({ recipe: recipeDetail }, null, 2);
-        
+
         // Add reviews if available
         if (relevantData.reviews && relevantData.reviews.length > 0) {
-          contextPrompt += '\n\n### Đánh giá từ người dùng:\n';
-          const reviewsSummary = relevantData.reviews.slice(0, 3).map(r => ({
+          contextPrompt += "\n\n### Đánh giá từ người dùng:\n";
+          const reviewsSummary = relevantData.reviews.slice(0, 3).map((r) => ({
             rating: r.rating,
-            comment: r.comment
+            comment: r.comment,
           }));
           contextPrompt += JSON.stringify({ reviews: reviewsSummary }, null, 2);
         }
-        
-        contextPrompt += '\n\nHãy trình bày CHI TIẾT công thức này một cách đầy đủ, bao gồm: mô tả, nguyên liệu (với số lượng nếu có), các bước làm, thời gian, độ khó, calo, v.v. Trình bày theo format dễ đọc với emoji phù hợp.';
+
+        contextPrompt +=
+          "\n\nHãy trình bày CHI TIẾT công thức này một cách đầy đủ, bao gồm: mô tả, nguyên liệu (với số lượng nếu có), các bước làm, thời gian, độ khó, calo, v.v. Trình bày theo format dễ đọc với emoji phù hợp.";
       }
       // Handle multiple recipes list
       else if (relevantData.recipes && relevantData.recipes.length > 0) {
         const totalRecipes = relevantData.recipes.length;
-        
+
         // Giới hạn chỉ lấy 6 món phổ biến nhất (sort by rating)
         const topRecipes = relevantData.recipes
           .sort((a, b) => (b.rate || 0) - (a.rate || 0))
           .slice(0, 6);
-        
-        const recipesSummary = topRecipes.map(r => ({
+
+        const recipesSummary = topRecipes.map((r) => ({
           name: r.name,
           image: r.image,
           rating: r.rate || 0,
           numberOfRatings: r.numberOfRate || 0,
           difficulty: r.difficulty,
-          time: r.time
+          time: r.time,
         }));
-        
-        contextPrompt += JSON.stringify({ 
-          totalRecipes: totalRecipes,
-          topRecipes: recipesSummary 
-        }, null, 2);
-        
-        contextPrompt += '\n\nHãy trình bày NGẮN GỌN danh sách món ăn với lời chào thân thiện.\n';
+
+        contextPrompt += JSON.stringify(
+          {
+            totalRecipes: totalRecipes,
+            topRecipes: recipesSummary,
+          },
+          null,
+          2
+        );
+
+        contextPrompt +=
+          "\n\nHãy trình bày NGẮN GỌN danh sách món ăn với lời chào thân thiện.\n";
         contextPrompt += `Format mẫu: "Chào bạn, Kooka đã tìm thấy ${totalRecipes} món ăn hấp dẫn với nguyên liệu [tên nguyên liệu] đây:\n`;
-        contextPrompt += '1. 🍜 [Tên món] - ⭐ [rating]/5 ([số đánh giá]) - [độ khó] - [thời gian]\n';
-        contextPrompt += '2. � [Tên món] - ⭐ [rating]/5 ([số đánh giá]) - [độ khó] - [thời gian]\n';
-        contextPrompt += '...\n';
+        contextPrompt +=
+          "1. 🍜 [Tên món] - ⭐ [rating]/5 ([số đánh giá]) - [độ khó] - [thời gian]\n";
+        contextPrompt +=
+          "2. � [Tên món] - ⭐ [rating]/5 ([số đánh giá]) - [độ khó] - [thời gian]\n";
+        contextPrompt += "...\n";
         contextPrompt += 'Bạn muốn biết chi tiết món nào?"\n\n';
-        contextPrompt += `Chỉ hiển thị ${topRecipes.length} món phổ biến nhất${totalRecipes > 6 ? ` (từ tổng ${totalRecipes} món tìm được)` : ''}.\n`;
-        contextPrompt += 'KHÔNG được mô tả chi tiết từng món. Chỉ liệt kê ngắn gọn và kết thúc bằng câu "Bạn muốn biết chi tiết món nào?" để khuyến khích người dùng click vào món ăn.';
+        contextPrompt += `Chỉ hiển thị ${topRecipes.length} món phổ biến nhất${
+          totalRecipes > 6 ? ` (từ tổng ${totalRecipes} món tìm được)` : ""
+        }.\n`;
+        contextPrompt +=
+          'KHÔNG được mô tả chi tiết từng món. Chỉ liệt kê ngắn gọn và kết thúc bằng câu "Bạn muốn biết chi tiết món nào?" để khuyến khích người dùng click vào món ăn.';
 
         // Add filter info if available
         if (relevantData.filters) {
-          contextPrompt += '\n\n### Bộ lọc đã áp dụng:\n';
+          contextPrompt += "\n\n### Bộ lọc đã áp dụng:\n";
           contextPrompt += JSON.stringify(relevantData.filters, null, 2);
         }
       } else {
@@ -655,76 +1818,92 @@ QUAN TRỌNG - Quy tắc trả lời:
     contextPrompt += `\n\n### Câu hỏi của người dùng:\n${userMessage}\n\n### Trả lời (NGẮN GỌN):`;
 
     try {
-      console.log(`🤖 Calling Gemini (prompt: ${contextPrompt.length} chars)...`);
+      console.log(
+        `🤖 Calling Gemini (prompt: ${contextPrompt.length} chars)...`
+      );
       const result = await this.model.generateContent(contextPrompt);
       const response = await result.response;
-      
+
       // Debug: log full response structure
-      console.log('📦 Response structure:', {
+      console.log("📦 Response structure:", {
         hasCandidates: !!response.candidates,
         candidatesCount: response.candidates?.length || 0,
         promptFeedback: response.promptFeedback,
         firstCandidateFinishReason: response.candidates?.[0]?.finishReason,
-        firstCandidateSafetyRatings: response.candidates?.[0]?.safetyRatings
+        firstCandidateSafetyRatings: response.candidates?.[0]?.safetyRatings,
       });
-      
+
       // Check for safety blocks
       if (response.promptFeedback?.blockReason) {
-        console.error('🚫 Blocked:', response.promptFeedback.blockReason);
+        console.error("🚫 Blocked:", response.promptFeedback.blockReason);
         throw new Error(`Blocked: ${response.promptFeedback.blockReason}`);
       }
-      
+
       // Check candidates
       if (!response.candidates || response.candidates.length === 0) {
-        console.error('⚠️ No candidates in response');
-        throw new Error('No candidates');
+        console.error("⚠️ No candidates in response");
+        throw new Error("No candidates");
       }
-      
+
       // Check finish reason
       const firstCandidate = response.candidates[0];
-      if (firstCandidate.finishReason && firstCandidate.finishReason !== 'STOP') {
-        console.error('⚠️ Unusual finish reason:', firstCandidate.finishReason);
+      if (
+        firstCandidate.finishReason &&
+        firstCandidate.finishReason !== "STOP"
+      ) {
+        console.error("⚠️ Unusual finish reason:", firstCandidate.finishReason);
       }
-      
+
       const responseText = response.text();
-      
-      if (!responseText || responseText.trim() === '') {
-        console.error('⚠️ Empty response text');
-        console.error('Full candidate:', JSON.stringify(firstCandidate, null, 2));
-        throw new Error('Empty response');
+
+      if (!responseText || responseText.trim() === "") {
+        console.error("⚠️ Empty response text");
+        console.error(
+          "Full candidate:",
+          JSON.stringify(firstCandidate, null, 2)
+        );
+        throw new Error("Empty response");
       }
-      
+
       console.log(`✅ Response OK (${responseText.length} chars)`);
       return responseText;
     } catch (error) {
-      console.error('❌ Gemini error:', error.message);
+      console.error("❌ Gemini error:", error.message);
 
       // Fallback response based on data
       if (relevantData.recipeNotFound) {
         return `Xin lỗi, hiện tại Kooka chưa có công thức cho món "${relevantData.searchedRecipeName}". Bạn có thể tìm kiếm món khác hoặc hỏi tôi về các món ăn phổ biến khác nhé! 😊`;
       }
-      
+
       if (relevantData.recipe) {
-        return `Tôi tìm thấy món ${relevantData.recipe.name}! Đây là một ${relevantData.recipe.short || 'món ăn ngon'}. Bạn muốn biết thêm thông tin gì về món này?`;
+        return `Tôi tìm thấy món ${relevantData.recipe.name}! Đây là một ${
+          relevantData.recipe.short || "món ăn ngon"
+        }. Bạn muốn biết thêm thông tin gì về món này?`;
       }
-      
+
       if (relevantData.recipes && relevantData.recipes.length > 0) {
-        const recipeNames = relevantData.recipes.map(r => r.name).join(', ');
+        const recipeNames = relevantData.recipes.map((r) => r.name).join(", ");
         return `Tôi tìm thấy ${relevantData.recipes.length} món ăn cho bạn: ${recipeNames}. Bạn muốn biết chi tiết món nào?`;
       }
 
-      return 'Xin lỗi, tôi gặp sự cố khi xử lý yêu cầu của bạn. Vui lòng thử lại sau.';
+      return "Xin lỗi, tôi gặp sự cố khi xử lý yêu cầu của bạn. Vui lòng thử lại sau.";
     }
   }
 
   // Save conversation to database
-  async saveConversation(sessionId, userId, userMessage, assistantMessage, metadata = {}) {
+  async saveConversation(
+    sessionId,
+    userId,
+    userMessage,
+    assistantMessage,
+    metadata = {}
+  ) {
     try {
       // Validate that both messages have content
       if (!userMessage || !assistantMessage) {
-        console.error('Cannot save conversation: missing content', { 
-          hasUserMessage: !!userMessage, 
-          hasAssistantMessage: !!assistantMessage 
+        console.error("Cannot save conversation: missing content", {
+          hasUserMessage: !!userMessage,
+          hasAssistantMessage: !!assistantMessage,
         });
         return null;
       }
@@ -735,13 +1914,13 @@ QUAN TRỌNG - Quy tắc trả lời:
         conversation = new Conversation({
           sessionId,
           userId,
-          messages: []
+          messages: [],
         });
       }
 
       conversation.messages.push(
-        { role: 'user', content: userMessage, metadata },
-        { role: 'assistant', content: assistantMessage }
+        { role: "user", content: userMessage, metadata },
+        { role: "assistant", content: assistantMessage }
       );
 
       conversation.updatedAt = new Date();
@@ -749,7 +1928,7 @@ QUAN TRỌNG - Quy tắc trả lời:
 
       return conversation;
     } catch (error) {
-      console.error('Error saving conversation:', error);
+      console.error("Error saving conversation:", error);
       return null;
     }
   }
@@ -762,7 +1941,7 @@ QUAN TRỌNG - Quy tắc trả lời:
 
       return conversation.messages.slice(-limit * 2); // Get last N exchanges (user + assistant)
     } catch (error) {
-      console.error('Error getting conversation history:', error);
+      console.error("Error getting conversation history:", error);
       return [];
     }
   }
@@ -775,9 +1954,9 @@ QUAN TRỌNG - Quy tắc trả lời:
 
       // Step 1: Analyze image if provided (can be URL or base64)
       if (imageData) {
-        console.log('Image data provided, analyzing...');
+        console.log("Image data provided, analyzing...");
         imageAnalysis = await this.analyzeImage(imageData, userMessage);
-        
+
         if (imageAnalysis && imageAnalysis.dishName) {
           dishNameFromImage = imageAnalysis.dishName;
           console.log(`Detected dish from image: ${dishNameFromImage}`);
@@ -785,26 +1964,32 @@ QUAN TRỌNG - Quy tắc trả lời:
       }
 
       // Step 2: Analyze intent (use dish name from image if available)
-      const messageToAnalyze = dishNameFromImage 
+      const messageToAnalyze = dishNameFromImage
         ? `${userMessage}. Món ăn trong ảnh: ${dishNameFromImage}`
         : userMessage;
-      
+
       // Run intent analysis and data fetching in parallel for speed
       const [intentAnalysis, conversationHistory] = await Promise.all([
         this.analyzeIntent(messageToAnalyze),
-        this.getConversationHistory(sessionId, 5)
+        this.getConversationHistory(sessionId, 5),
       ]);
-      
-      console.log('Intent Analysis:', intentAnalysis);
+
+      console.log("Intent Analysis:", intentAnalysis);
 
       // Step 3: Fetch relevant data if needed
       let relevantData = {};
-      
+
       // If we have dish name from image, try to search for it
       if (dishNameFromImage) {
-        const searchResult = await dataFetchService.searchRecipes(dishNameFromImage);
-        
-        if (searchResult && searchResult.recipes && searchResult.recipes.length > 0) {
+        const searchResult = await dataFetchService.searchRecipes(
+          dishNameFromImage
+        );
+
+        if (
+          searchResult &&
+          searchResult.recipes &&
+          searchResult.recipes.length > 0
+        ) {
           // Found in database
           relevantData.recipe = searchResult.recipes[0];
           relevantData.imageAnalysis = imageAnalysis;
@@ -818,16 +2003,24 @@ QUAN TRỌNG - Quy tắc trả lời:
           console.log(`"${dishNameFromImage}" not found in database`);
         }
       }
-      
+
       // Also fetch data based on intent
       if (intentAnalysis.needsData) {
-        const intentData = await this.fetchRelevantData(intentAnalysis.intent, intentAnalysis.entities);
+        const intentData = await this.fetchRelevantData(
+          intentAnalysis.intent,
+          intentAnalysis.entities
+        );
         relevantData = { ...relevantData, ...intentData };
-        console.log('Relevant Data Keys:', Object.keys(relevantData));
+        console.log("Relevant Data Keys:", Object.keys(relevantData));
       }
 
       // Step 4: Generate response
-      const assistantMessage = await this.generateResponse(userMessage, relevantData, conversationHistory, imageData);
+      const assistantMessage = await this.generateResponse(
+        userMessage,
+        relevantData,
+        conversationHistory,
+        imageData
+      );
 
       // Step 5: Prepare structured response data
       const structuredData = this.prepareStructuredResponse(relevantData);
@@ -837,8 +2030,8 @@ QUAN TRỌNG - Quy tắc trả lời:
         intent: intentAnalysis.intent,
         entities: intentAnalysis.entities,
         hasImage: !!imageData,
-        imageAnalysis: imageAnalysis
-      }).catch(err => console.error('Error saving conversation:', err));
+        imageAnalysis: imageAnalysis,
+      }).catch((err) => console.error("Error saving conversation:", err));
 
       return {
         success: true,
@@ -846,14 +2039,14 @@ QUAN TRỌNG - Quy tắc trả lời:
         intent: intentAnalysis.intent,
         structuredData: structuredData,
         data: relevantData,
-        imageAnalysis: imageAnalysis
+        imageAnalysis: imageAnalysis,
       };
     } catch (error) {
-      console.error('Error in chat:', error);
+      console.error("Error in chat:", error);
       return {
         success: false,
-        message: 'Xin lỗi, đã xảy ra lỗi. Vui lòng thử lại sau.',
-        error: error.message
+        message: "Xin lỗi, đã xảy ra lỗi. Vui lòng thử lại sau.",
+        error: error.message,
       };
     }
   }
@@ -865,21 +2058,21 @@ QUAN TRỌNG - Quy tắc trả lời:
       recipe: null,
       totalCount: 0,
       action: null, // 🆕 NEW: action type for frontend
-      generatedMealPlan: null // 🆕 NEW: meal plan data
+      generatedMealPlan: null, // 🆕 NEW: meal plan data
     };
 
     // Handle generated meal plan
     if (relevantData.generatedMealPlan) {
       const mealPlanData = relevantData.generatedMealPlan;
       if (mealPlanData.success) {
-        result.action = 'redirect_to_meal_planner';
+        result.action = "redirect_to_meal_planner";
         result.generatedMealPlan = {
           mealPlanType: mealPlanData.mealPlanType,
           duration: mealPlanData.duration,
           // ✅ MOST IMPORTANT: Plans structure (lightweight)
           plans: mealPlanData.mealPlan, // Only contains: recipeId, recipeName, recipeImage
           // ✅ OPTIONAL: Just count for display
-          totalRecipes: mealPlanData.totalRecipes
+          totalRecipes: mealPlanData.totalRecipes,
           // ❌ REMOVED: Full recipes array (too heavy, frontend can fetch by ID if needed)
         };
       }
@@ -899,16 +2092,16 @@ QUAN TRỌNG - Quy tắc trả lời:
         size: relevantData.recipe.size,
         cuisine: relevantData.recipe.cuisine?.name || null,
         category: relevantData.recipe.category?.name || null,
-        short: relevantData.recipe.short
+        short: relevantData.recipe.short,
       };
     }
 
     // Multiple recipes - TRẢ VỀ DANH SÁCH ĐỂ FRONTEND RENDER THÀNH CLICKABLE CARDS
     if (relevantData.recipes && relevantData.recipes.length > 0) {
       result.totalCount = relevantData.recipes.length;
-      
+
       // Trả về danh sách recipes với thông tin cần thiết để render cards
-      result.recipes = relevantData.recipes.map(recipe => ({
+      result.recipes = relevantData.recipes.map((recipe) => ({
         id: recipe._id,
         name: recipe.name,
         image: recipe.image,
@@ -920,7 +2113,7 @@ QUAN TRỌNG - Quy tắc trả lời:
         size: recipe.size,
         cuisine: recipe.cuisine?.name || null,
         category: recipe.category?.name || null,
-        short: recipe.short
+        short: recipe.short,
       }));
     }
 
@@ -931,9 +2124,9 @@ QUAN TRỌNG - Quy tắc trả lời:
   async clearConversation(sessionId) {
     try {
       await Conversation.deleteOne({ sessionId });
-      return { success: true, message: 'Conversation cleared' };
+      return { success: true, message: "Conversation cleared" };
     } catch (error) {
-      console.error('Error clearing conversation:', error);
+      console.error("Error clearing conversation:", error);
       return { success: false, error: error.message };
     }
   }
