@@ -4,6 +4,7 @@ require('dotenv').config();
 const connectDB = require('./config/db');
 const reviewRoutes = require('./routes/reviewRoutes');
 const commentRoutes = require('./routes/commentRoutes');
+const viewRoutes = require('./routes/viewRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5007;
@@ -18,6 +19,7 @@ connectDB();
 // Routes
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/comments', commentRoutes);
+app.use('/api/views', viewRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
