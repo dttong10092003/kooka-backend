@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const reviewController = require('../controllers/reviewController');
 
+// Get total review count
+router.get('/count', reviewController.getReviewCount);
+
 // Create review (with comment)
 router.post('/', reviewController.createReview);
 

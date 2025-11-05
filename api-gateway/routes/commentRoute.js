@@ -7,6 +7,8 @@ const verifyToken = require('../middlewares/verifyToken');
 const commentProxy = proxyFactory('http://review-service:5007');
 
 // Public routes (no authentication required)
+router.get('/top', commentProxy);
+router.get('/newest', commentProxy);
 router.get('/recipe/:recipeId', commentProxy);
 router.get('/:commentId/replies', commentProxy);
 router.get('/recipe/:recipeId/count', commentProxy);

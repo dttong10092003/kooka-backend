@@ -9,12 +9,26 @@ async function getCategoryById(id) {
 }
 
 async function createCategory(data) {
-  const category = new Category(data);
-  return await category.save();
+  try {
+    const category = new Category(data);
+    return await category.save();
+  } catch (error) {
+    if (error.code === 11000) {
+      throw new Error(`Category "${data.name}" already exists`);
+    }
+    throw error;
+  }
 }
 
 async function updateCategory(id, data) {
-  return await Category.findByIdAndUpdate(id, data, { new: true });
+  try {
+    return await Category.findByIdAndUpdate(id, data, { new: true });
+  } catch (error) {
+    if (error.code === 11000) {
+      throw new Error(`Category "${data.name}" already exists`);
+    }
+    throw error;
+  }
 }
 
 async function deleteCategory(id) {

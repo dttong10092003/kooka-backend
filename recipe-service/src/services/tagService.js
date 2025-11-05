@@ -12,13 +12,27 @@ async function getTagById(id) {
 
 // Create
 async function createTag(data) {
-  const tag = new Tag(data);
-  return await tag.save();
+  try {
+    const tag = new Tag(data);
+    return await tag.save();
+  } catch (error) {
+    if (error.code === 11000) {
+      throw new Error(`Tag "${data.name}" already exists`);
+    }
+    throw error;
+  }
 }
 
 // Update
 async function updateTag(id, data) {
-  return await Tag.findByIdAndUpdate(id, data, { new: true });
+  try {
+    return await Tag.findByIdAndUpdate(id, data, { new: true });
+  } catch (error) {
+    if (error.code === 11000) {
+      throw new Error(`Tag "${data.name}" already exists`);
+    }
+    throw error;
+  }
 }
 
 // Delete

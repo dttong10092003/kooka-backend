@@ -150,6 +150,15 @@ class ReviewController {
             res.status(500).json({ error: error.message });
         }
     }
+
+    async getReviewCount(req, res) {
+        try {
+            const count = await reviewService.getReviewCount();
+            res.json({ count });
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    }
 }
 
 module.exports = new ReviewController();

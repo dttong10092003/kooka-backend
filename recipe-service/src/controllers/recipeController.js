@@ -73,3 +73,43 @@ exports.updateRecipeRating = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+exports.getTopRatedRecipes = async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 5;
+    const recipes = await recipeService.getTopRatedRecipes(limit);
+    res.json(recipes);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.getNewestRecipes = async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+    const recipes = await recipeService.getNewestRecipes(limit);
+    res.json(recipes);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.getPopularRecipes = async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+    const recipes = await recipeService.getPopularRecipes(limit);
+    res.json(recipes);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.getTrendingRecipes = async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 5;
+    const recipes = await recipeService.getTrendingRecipes(limit);
+    res.json(recipes);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};

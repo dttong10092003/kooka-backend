@@ -9,12 +9,26 @@ async function getIngredientById(id) {
 }
 
 async function createIngredient(data) {
-  const ingredient = new Ingredient(data);
-  return await ingredient.save();
+  try {
+    const ingredient = new Ingredient(data);
+    return await ingredient.save();
+  } catch (error) {
+    if (error.code === 11000) {
+      throw new Error(`Ingredient "${data.name}" already exists`);
+    }
+    throw error;
+  }
 }
 
 async function updateIngredient(id, data) {
-  return await Ingredient.findByIdAndUpdate(id, data, { new: true }).populate("typeId", "name");
+  try {
+    return await Ingredient.findByIdAndUpdate(id, data, { new: true }).populate("typeId", "name");
+  } catch (error) {
+    if (error.code === 11000) {
+      throw new Error(`Ingredient "${data.name}" already exists`);
+    }
+    throw error;
+  }
 }
 
 async function deleteIngredient(id) {

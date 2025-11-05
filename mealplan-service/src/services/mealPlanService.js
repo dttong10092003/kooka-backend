@@ -3,9 +3,22 @@ const dayjs = require("dayjs");
 const minMax = require("dayjs/plugin/minMax");
 dayjs.extend(minMax);
 
+function isStartDateConflict(newStart, existingStart) {
+  const existing = dayjs(existingStart);
+  const forbiddenStart = existing.subtract(6, "day");
+  const forbiddenEnd = existing.add(6, "day");
+
+  return (
+    (newStart.isSame(forbiddenStart, "day") ||
+      newStart.isAfter(forbiddenStart, "day")) &&
+    (newStart.isSame(forbiddenEnd, "day") ||
+      newStart.isBefore(forbiddenEnd, "day"))
+  );
+}
+
 // Tạo mealplan mới
 const createMealPlan = async (data) => {
-  const { plans, userId } = data;
+  const { plans, userId, startDate: providedStartDate } = data;
 
   if (!plans || plans.length === 0) {
     throw new Error("Danh sách plans không được để trống");
@@ -13,8 +26,24 @@ const createMealPlan = async (data) => {
 
   // Lấy ngày nhỏ nhất và lớn nhất
   const allDates = plans.map((p) => dayjs(p.date));
-  const startDate = dayjs.min(allDates);
+  const minDate = dayjs.min(allDates);
   const endDate = dayjs.max(allDates);
+
+  const startDate = providedStartDate ? dayjs(providedStartDate) : minDate;
+
+  if (!startDate.isValid()) {
+    throw new Error("Ngày bắt đầu không hợp lệ");
+  }
+
+  if (startDate.isAfter(minDate)) {
+    throw new Error(
+      `Ngày bắt đầu (${startDate.format(
+        "DD/MM/YYYY"
+      )}) không thể sau ngày sớm nhất trong kế hoạch (${minDate.format(
+        "DD/MM/YYYY"
+      )}).`
+    );
+  }
 
   // 1️⃣ Kiểm tra nếu người dùng có 3 mealplan chưa hoàn thành
   const incompletePlans = await MealPlan.find({
@@ -41,6 +70,24 @@ const createMealPlan = async (data) => {
     throw new Error(
       "Một hoặc nhiều ngày bạn chọn đã nằm trong meal plan khác của bạn."
     );
+  }
+
+  const existingPlans = await MealPlan.find({ userId });
+  for (const existing of existingPlans) {
+    const existingStart = dayjs(existing.startDate);
+    if (isStartDateConflict(startDate, existingStart)) {
+      throw new Error(
+        `Ngày bắt đầu (${startDate.format(
+          "DD/MM/YYYY"
+        )}) nằm trong vùng cấm (từ ${existingStart
+          .subtract(6, "day")
+          .format("DD/MM/YYYY")} đến ${existingStart
+          .add(6, "day")
+          .format("DD/MM/YYYY")}) của meal plan bắt đầu ${existingStart.format(
+          "DD/MM/YYYY"
+        )}.`
+      );
+    }
   }
 
   // 3️⃣ Tạo mealplan mới
@@ -74,9 +121,8 @@ const updateMealPlan = async (id, data) => {
     throw new Error("Danh sách plans không được để trống");
   }
 
-  // Lấy ngày nhỏ nhất và lớn nhất trong kế hoạch mới
+  const currentStartDate = dayjs(existingPlan.startDate);
   const allDates = plans.map((p) => dayjs(p.date));
-  const startDate = dayjs.min(allDates);
   const endDate = dayjs.max(allDates);
 
   // 1️⃣ Kiểm tra xem userId có đúng với mealplan đang chỉnh không
@@ -102,7 +148,7 @@ const updateMealPlan = async (id, data) => {
 
   // 3️⃣ Cập nhật dữ liệu
   existingPlan.plans = plans;
-  existingPlan.startDate = startDate.toDate();
+  existingPlan.startDate = currentStartDate.toDate();
   existingPlan.endDate = endDate.toDate();
 
   const updatedPlan = await existingPlan.save();
