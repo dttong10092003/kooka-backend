@@ -19,6 +19,11 @@ app.add_middleware(
 # Include router
 app.include_router(router, prefix="/api", tags=["recipe"])
 
+# Ping endpoint for UptimeRobot
+@app.get("/ping")
+async def ping():
+    return "Service is alive!"
+
 # Lần đầu chạy
 sync_recipes_to_chroma()
 

@@ -26,6 +26,11 @@ app.get('/health', (req, res) => {
     res.json({ status: 'Review & Comment Service is running' });
 });
 
+// Ping endpoint for UptimeRobot
+app.get('/ping', (req, res) => {
+    res.status(200).send('Service is alive!');
+});
+
 app.listen(PORT, () => {
     console.log(`Review & Comment Service is running on port ${PORT}`);
 });

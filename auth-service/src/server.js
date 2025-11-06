@@ -50,6 +50,11 @@ mongoose.connect(process.env.MONGO_URI)
   })
   .catch(err => console.log(err));
 
+// Ping endpoint for UptimeRobot
+app.get('/ping', (req, res) => {
+  res.status(200).send('Service is alive!');
+});
+
 // routes
 app.use("/api/auth", authRoutes);
 

@@ -34,6 +34,11 @@ app.use("/api/tags", tagRoutes);
 // Health check
 app.get("/health", (req, res) => res.json({ status: "ok" }));
 
+// Ping endpoint for UptimeRobot
+app.get('/ping', (req, res) => {
+  res.status(200).send('Service is alive!');
+});
+
 // Start server
 const PORT = process.env.PORT || 5000;
 

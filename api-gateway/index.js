@@ -28,6 +28,7 @@ const allowedOrigins = [
   'http://localhost:4000',  // Frontend URL
   'http://localhost:5173',  // Vite dev server (backup)
   'http://localhost:3000',  // Alternative port
+  'https://kooka-web.vercel.app',  // Production frontend (Vercel)
   process.env.FRONTEND_URL  // Production URL from env
 ].filter(Boolean);
 
@@ -35,7 +36,7 @@ app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (Postman, mobile apps, etc.)
     if (!origin) return callback(null, true);
-    
+
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
@@ -62,6 +63,11 @@ app.use(cors({
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'API Gateway is running' });
+});
+
+// Ping endpoint for UptimeRobot
+app.get('/ping', (req, res) => {
+  res.status(200).send('Service is alive!');
 });
 
 // Routes
