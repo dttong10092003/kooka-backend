@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const proxyFactory = require('../utils/proxyFactory');
 
-const viewProxy = proxyFactory('http://review-service:5007');
+const viewProxy = proxyFactory(process.env.REVIEW_SERVICE_URL);
 
 // ===== IMPORTANT: Thứ tự routes rất quan trọng! =====
 // Các route CỤ THỂ phải đặt TRƯỚC các route có PARAMS

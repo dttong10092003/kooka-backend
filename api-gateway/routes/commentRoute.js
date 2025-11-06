@@ -4,7 +4,7 @@ const proxyFactory = require('../utils/proxyFactory');
 const verifyToken = require('../middlewares/verifyToken');
 
 // Comment routes now go to review-service
-const commentProxy = proxyFactory('http://review-service:5007');
+const commentProxy = proxyFactory(process.env.REVIEW_SERVICE_URL);
 
 // Public routes (no authentication required)
 router.get('/top', commentProxy);
