@@ -13,6 +13,11 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 // Routes
 app.use("/api/user/profile", profileRoutes);
 
+// Ping endpoint for UptimeRobot
+app.get('/ping', (req, res) => {
+  res.status(200).send('Service is alive!');
+});
+
 // Kết nối MongoDB
 mongoose
   .connect(process.env.MONGO_URI_USER)

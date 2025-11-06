@@ -19,6 +19,11 @@ app.use(express.json());
 // Routes
 app.use("/api/mealplans", mealPlanRoutes);
 
+// Ping endpoint for UptimeRobot
+app.get('/ping', (req, res) => {
+  res.status(200).send('Service is alive!');
+});
+
 const PORT = process.env.PORT || 5009;
 
 (async () => {

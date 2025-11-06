@@ -27,6 +27,11 @@ app.use((req, res, next) => {
 // Routes
 app.use('/api/chatbot', chatbotRoutes);
 
+// Ping endpoint for UptimeRobot
+app.get('/ping', (req, res) => {
+  res.status(200).send('Service is alive!');
+});
+
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
