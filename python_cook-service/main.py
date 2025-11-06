@@ -19,8 +19,8 @@ app.add_middleware(
 # Include router
 app.include_router(router, prefix="/api", tags=["recipe"])
 
-# Ping endpoint for UptimeRobot
-@app.get("/ping")
+# Ping endpoint for UptimeRobot (supports both GET and HEAD)
+@app.api_route("/ping", methods=["GET", "HEAD"])
 async def ping():
     return "Service is alive!"
 
