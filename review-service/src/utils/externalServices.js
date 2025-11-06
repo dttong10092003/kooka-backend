@@ -1,15 +1,8 @@
 const axios = require('axios');
 
-// Service URLs - thử cả Docker và Local
-const AUTH_SERVICE_URLS = [
-    'http://auth-service:5001',  // Docker
-    'http://localhost:5001'      // Local
-];
-
-const USER_SERVICE_URLS = [
-    'http://user-service:5002',  // Docker
-    'http://localhost:5002'      // Local
-];
+// Service URLs - Read from environment variables
+const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://localhost:5001';
+const USER_SERVICE_URL = process.env.USER_SERVICE_URL || 'http://localhost:5002';
 
 /**
  * Gọi auth-service để lấy thông tin user (username)
@@ -17,16 +10,13 @@ const USER_SERVICE_URLS = [
  * @returns {Promise<Object>} User info with username
  */
 async function getUserFromAuthService(userId) {
-    for (const baseUrl of AUTH_SERVICE_URLS) {
-        try {
-            const response = await axios.get(`${baseUrl}/api/auth/user/${userId}`);
-            return response.data;
-        } catch (err) {
-            console.error(`❌ Failed to get user from ${baseUrl}:`, err.message);
-        }
+    try {
+        const response = await axios.get(`${AUTH_SERVICE_URL}/api/auth/user/${userId}`);
+        return response.data;
+    } catch (err) {
+        console.error(`❌ Failed to get user from ${AUTH_SERVICE_URL}:`, err.message);
+        return null;
     }
-    console.warn(`⚠️  Could not fetch user from auth-service for userId: ${userId}`);
-    return null;
 }
 
 /**
@@ -35,16 +25,13 @@ async function getUserFromAuthService(userId) {
  * @returns {Promise<Object>} User profile with avatar
  */
 async function getProfileFromUserService(userId) {
-    for (const baseUrl of USER_SERVICE_URLS) {
-        try {
-            const response = await axios.get(`${baseUrl}/api/user/profile/${userId}`);
-            return response.data;
-        } catch (err) {
-            console.error(`❌ Failed to get profile from ${baseUrl}:`, err.message);
-        }
+    try {
+        const response = await axios.get(`${USER_SERVICE_URL}/api/user/profile/${userId}`);
+        return response.data;
+    } catch (err) {
+        console.error(`❌ Failed to get profile from ${USER_SERVICE_URL}:`, err.message);
+        return null;
     }
-    console.warn(`⚠️  Could not fetch profile from user-service for userId: ${userId}`);
-    return null;
 }
 
 /**
