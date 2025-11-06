@@ -1,24 +1,18 @@
 const Like = require('../models/Like');
 const axios = require('axios');
 
-// Comment service URLs - now pointing to review-service
-const COMMENT_SERVICE_URLS = [
-    'http://review-service:5007',  // Docker
-    'http://localhost:5007'         // Local
-];
+// Comment service URL - now pointing to review-service
+const REVIEW_SERVICE_URL = process.env.REVIEW_SERVICE_URL || 'http://localhost:5007';
 
 // Hàm update like count trong review-service
 async function updateCommentLikeCount(commentId, likeCount) {
-    for (const baseUrl of COMMENT_SERVICE_URLS) {
-        try {
-            await axios.patch(`${baseUrl}/api/comments/${commentId}/likes`, { likeCount });
-            console.log(`✅ Updated like count for comment ${commentId}: ${likeCount}`);
-            return;
-        } catch (err) {
-            console.error(`❌ Failed to update comment likes at ${baseUrl}:`, err.message);
-        }
+    try {
+        await axios.patch(`${REVIEW_SERVICE_URL}/api/comments/${commentId}/likes`, { likeCount });
+        console.log(`✅ Updated like count for comment ${commentId}: ${likeCount}`);
+    } catch (err) {
+        console.error(`❌ Failed to update comment likes at ${REVIEW_SERVICE_URL}:`, err.message);
+        console.warn(`⚠️  Could not update like count for comment ${commentId}`);
     }
-    console.warn(`⚠️  Could not update like count for comment ${commentId}`);
 }
 
 class LikeService {

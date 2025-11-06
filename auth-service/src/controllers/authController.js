@@ -3,25 +3,20 @@ const User = require("../models/user");
 const axios = require("axios");
 
 // ===== Cấu hình user-service URL =====
-const USER_SERVICE_URLS = [
-  "http://user-service:5002",  // cho Docker Compose
-  "http://localhost:5002",     // cho local
-];
+const USER_SERVICE_URL = process.env.USER_SERVICE_URL || "http://localhost:5002";
 
-// Hàm gọi user-service (thử nhiều URL)
+// Hàm gọi user-service
 async function callUserService(path, data) {
   console.log(`🔄 Calling user-service: ${path} with data:`, data);
-  for (const baseUrl of USER_SERVICE_URLS) {
-    try {
-      console.log(`🌐 Trying ${baseUrl}${path}...`);
-      const response = await axios.post(`${baseUrl}${path}`, data);
-      console.log(`✅ Success from ${baseUrl}${path}:`, response.status);
-      return response;
-    } catch (err) {
-      console.error(`❌ Failed ${baseUrl}${path}:`, err.response?.status || err.message);
-    }
+  try {
+    console.log(`🌐 Trying ${USER_SERVICE_URL}${path}...`);
+    const response = await axios.post(`${USER_SERVICE_URL}${path}`, data);
+    console.log(`✅ Success from ${USER_SERVICE_URL}${path}:`, response.status);
+    return response;
+  } catch (err) {
+    console.error(`❌ Failed ${USER_SERVICE_URL}${path}:`, err.response?.status || err.message);
+    throw new Error("Không thể kết nối user-service");
   }
-  throw new Error("Không thể kết nối user-service ở cả Docker lẫn Local");
 }
 
 // ===== Đăng ký =====
