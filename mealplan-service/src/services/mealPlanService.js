@@ -160,50 +160,9 @@ const deleteMealPlan = async (id) => {
   return await MealPlan.findByIdAndDelete(id);
 };
 
-const updateMealPlanStatus = async (id, status) => {
-  const mealPlan = await MealPlan.findById(id);
-  if (!mealPlan) {
-    throw new Error("MealPlan không tồn tại");
-  }
-
-  if (!["pending", "completed"].includes(status)) {
-    throw new Error("Trạng thái không hợp lệ");
-  }
-
-  // Nếu status không thay đổi thì trả về luôn
-  if (mealPlan.status === status) {
-    return mealPlan;
-  }
-
-  // Cập nhật trạng thái
-  mealPlan.status = status;
-  await mealPlan.save();
-
-  // Nếu chuyển sang 'completed' --> kiểm tra và xóa completed cũ (theo endDate)
-  if (status === "completed") {
-    // Lấy tất cả completed của user, sắp xếp theo endDate tăng dần, createdAt tăng dần (cũ nhất đầu)
-    const completedPlans = await MealPlan.find({
-      userId: mealPlan.userId,
-      status: "completed",
-    }).sort({ endDate: 1, createdAt: 1 });
-
-    // Nếu vượt quá 2 bản ghi completed, xóa những cái cũ nhất (theo endDate)
-    const excess = completedPlans.length - 2;
-    if (excess > 0) {
-      // Xóa 'excess' bản ghi đầu tiên trong completedPlans
-      const toDelete = completedPlans.slice(0, excess);
-      const deleteIds = toDelete.map((p) => p._id);
-      await MealPlan.deleteMany({ _id: { $in: deleteIds } });
-    }
-  }
-
-  return mealPlan;
-};
-
 module.exports = {
   createMealPlan,
   getMealPlansByUser,
   updateMealPlan,
   deleteMealPlan,
-  updateMealPlanStatus,
 };

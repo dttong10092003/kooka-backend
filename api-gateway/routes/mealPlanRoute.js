@@ -20,10 +20,10 @@ router.post("/", verifyToken, proxyMealPlanService);
 // Cập nhật meal plan (thay đổi món, ngày, ...)
 router.patch("/:id", verifyToken, proxyMealPlanService);
 
-// Cập nhật trạng thái meal plan (pending ↔ completed)
-router.patch("/:id/status", verifyToken, proxyMealPlanService);
-
 // Xóa meal plan
 router.delete("/:id", verifyToken, proxyMealPlanService);
+
+// 🤖 Admin: Trigger auto-update status manually (không cần verifyToken vì chỉ để test)
+router.post("/admin/auto-update-status", proxyMealPlanService);
 
 module.exports = router;

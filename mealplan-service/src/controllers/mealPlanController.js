@@ -47,19 +47,20 @@ exports.deleteMealPlan = async (req, res) => {
   }
 };
 
-exports.updateMealPlanStatus = async (req, res) => {
+// 🤖 Trigger auto-update status manually (cho test/debug)
+exports.triggerAutoUpdateStatus = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { status } = req.body;
-
-    const result = await mealPlanService.updateMealPlanStatus(id, status);
-
+    const { autoUpdateMealPlanStatus } = require("../jobs/autoUpdateMealPlanStatus");
+    
+    console.log('\n🧪 [MANUAL TRIGGER] Admin đang test auto-update...\n');
+    const result = await autoUpdateMealPlanStatus();
+    
     res.status(200).json({
-      message: `Cập nhật trạng thái meal plan thành công`,
-      data: result,
+      message: "Đã chạy auto-update thành công",
+      result
     });
   } catch (err) {
-    console.error("Lỗi khi cập nhật trạng thái:", err);
-    res.status(400).json({ message: err.message });
+    console.error("Lỗi khi trigger auto-update:", err);
+    res.status(500).json({ message: err.message });
   }
 };
