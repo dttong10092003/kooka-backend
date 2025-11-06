@@ -6,6 +6,8 @@ router.post("/", mealPlanController.createMealPlan);
 router.get("/:userId", mealPlanController.getMealPlansByUser);
 router.patch("/:id", mealPlanController.updateMealPlan);
 router.delete("/:id", mealPlanController.deleteMealPlan);
-router.patch("/:id/status", mealPlanController.updateMealPlanStatus);
+
+// 🤖 Admin endpoint: Trigger auto-update manually (để test)
+router.post("/admin/auto-update-status", mealPlanController.triggerAutoUpdateStatus);
 
 module.exports = router;
