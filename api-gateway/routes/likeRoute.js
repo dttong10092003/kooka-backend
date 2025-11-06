@@ -3,7 +3,7 @@ const router = express.Router();
 const proxyFactory = require('../utils/proxyFactory');
 const verifyToken = require('../middlewares/verifyToken');
 
-const likeProxy = proxyFactory('http://like-service:5005');
+const likeProxy = proxyFactory(process.env.LIKE_SERVICE_URL);
 
 // Public routes (no authentication required)
 router.get('/comment/:commentId/count', likeProxy);

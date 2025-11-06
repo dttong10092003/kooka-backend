@@ -3,7 +3,7 @@ const router = express.Router();
 const proxyFactory = require('../utils/proxyFactory');
 const verifyToken = require('../middlewares/verifyToken');
 
-const reviewProxy = proxyFactory('http://review-service:5007');
+const reviewProxy = proxyFactory(process.env.REVIEW_SERVICE_URL);
 
 // Public routes (no authentication required)
 router.get('/count', reviewProxy);

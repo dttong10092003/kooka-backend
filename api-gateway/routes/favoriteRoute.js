@@ -3,7 +3,7 @@ const router = express.Router();
 const proxyFactory = require('../utils/proxyFactory');
 const verifyToken = require('../middlewares/verifyToken');
 
-const favoriteProxy = proxyFactory('http://favorite-service:5006');
+const favoriteProxy = proxyFactory(process.env.FAVORITE_SERVICE_URL);
 
 // Public routes (no authentication required)
 router.get('/most-favorited', favoriteProxy);
