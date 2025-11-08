@@ -159,6 +159,26 @@ class ReviewController {
             res.status(500).json({ error: error.message });
         }
     }
+
+    async getUserReviews(req, res) {
+        try {
+            const userId = req.headers['x-user-id'];
+
+            if (!userId) {
+                return res.status(401).json({ 
+                    error: 'Unauthorized - User ID not found' 
+                });
+            }
+
+            const page = parseInt(req.query.page) || 1;
+            const limit = parseInt(req.query.limit) || 20;
+
+            const result = await reviewService.getUserReviews(userId, page, limit);
+            res.json(result);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    }
 }
 
 module.exports = new ReviewController();
