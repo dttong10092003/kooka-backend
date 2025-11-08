@@ -12,6 +12,7 @@ router.get('/recipe/:recipeId', reviewProxy);
 router.get('/recipe/:recipeId/stats', reviewProxy);
 
 // Protected routes (authentication required)
+router.get('/user', verifyToken, reviewProxy); // Get all reviews of current user
 router.post('/', verifyToken, reviewProxy);
 router.put('/comment/:commentId', verifyToken, reviewProxy);
 router.delete('/comment/:commentId', verifyToken, reviewProxy);
