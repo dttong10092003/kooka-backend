@@ -5,6 +5,9 @@ const reviewController = require('../controllers/reviewController');
 // Get total review count
 router.get('/count', reviewController.getReviewCount);
 
+// Get all reviews by current user
+router.get('/user', reviewController.getUserReviews);
+
 // Create review (with comment)
 router.post('/', reviewController.createReview);
 
