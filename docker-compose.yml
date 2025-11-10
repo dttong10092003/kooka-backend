@@ -1,77 +1,5 @@
 version: "3.8"
 
-# services:
-#   # MongoDB Service
-#   mongo:
-#     image: mongo:6
-#     container_name: mongo
-#     restart: always
-#     ports:
-#       - "27017:27017"
-#     volumes:
-#       - mongo-data:/data/db
-
-#   # Auth Service
-#   auth-service:
-#     build: ./auth-service
-#     container_name: auth-service
-#     restart: always
-#     ports:
-#       - "5001:5001"
-#     environment:
-#       - PORT=5001
-#       - MONGO_URI=${MONGO_URI}
-#       - JWT_SECRET=${JWT_SECRET}
-#       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-#       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-#     depends_on:
-#       - mongo
-
-#   # User Service
-#   user-service:
-#     build: ./user-service
-#     container_name: user-service
-#     restart: always
-#     ports:
-#       - "5002:5002"
-#     environment:
-#       - PORT=5002
-#       - MONGO_URI=${MONGO_URI_USER}
-#     depends_on:
-#       - mongo
-
-#   # Recipe Search Service (FastAPI)
-#   python_cook-service:
-#     build:
-#       context: ./python_cook-service
-#       dockerfile: Dockerfile
-#     ports:
-#       - "8000:8000"
-#     environment:
-#       - PORT=8000
-#       - MONGODB_URI=${MONGODB_URI}
-#     restart: unless-stopped
-#     depends_on:
-#       - mongo
-
-#   # Recipe CRUD Service (Node.js)
-#   recipe-service:
-#     build:
-#       context: ./recipe-service
-#       dockerfile: Dockerfile
-#     ports:
-#       - "5000:5000"
-#     environment:
-#       - PORT=5000
-#       - MONGODB_URI=${MONGODB_URI}
-#     restart: unless-stopped
-#     depends_on:
-#       - mongo
-
-# volumes:
-#   mongo-data:
-
-
 services:
   # MongoDB Service
   mongo:
@@ -96,8 +24,10 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - USER_SERVICE_URL=${USER_SERVICE_URL}
     depends_on:
       - mongo
+      - user-service
 
   # User Service
   user-service:
@@ -109,6 +39,8 @@ services:
     environment:
       - PORT=5002
       - MONGO_URI_USER=${MONGO_URI_USER}
+      - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
+      - CLOUDINARY_URL=${CLOUDINARY_URL_USER}
     depends_on:
       - mongo
 
@@ -124,10 +56,13 @@ services:
     environment:
       - PORT=5000
       - MONGODB_URI=${MONGODB_URI}
-      - CLOUDINARY_URL=cloudinary://725489854714717:FWkFjsjCpKtmrpzTCe8S-13cuf8@dh9otw5el
-      - PYTHON_COOK_SERVICE_URL=http://python_cook-service:8000
+      - CLOUDINARY_URL=${CLOUDINARY_URL_RECIPE}
+      - PYTHON_COOK_SERVICE_URL=${PYTHON_COOK_SERVICE_URL}
+      - REVIEW_SERVICE_URL=${REVIEW_SERVICE_URL}
+      - FAVORITE_SERVICE_URL=${FAVORITE_SERVICE_URL}
     depends_on:
       - mongo
+      - python_cook-service
 
   mealplan-service:
     build:
@@ -155,6 +90,9 @@ services:
     environment:
       - PORT=8000
       - MONGODB_URI=${MONGODB_URI}
+      - DB_NAME=${DB_NAME}
+      - COLLECTION_NAME=${COLLECTION_NAME}
+      - CHROMA_PATH=${CHROMA_PATH}
     depends_on:
       - mongo
 
@@ -169,8 +107,11 @@ services:
       - "5005:5005"
     environment:
       - PORT=5005
-      - MONGODB_URI=mongodb+srv://kookacmt:kookacmt@kookacmt.eht7alz.mongodb.net/?retryWrites=true&w=majority&appName=KookaCmt
+      - MONGODB_URI=${MONGODB_URI_LIKE}
       - JWT_SECRET=${JWT_SECRET}
+      - REVIEW_SERVICE_URL=${REVIEW_SERVICE_URL}
+    depends_on:
+      - review-service
 
   # Favorite Service
   favorite-service:
@@ -183,8 +124,11 @@ services:
       - "5006:5006"
     environment:
       - PORT=5006
-      - MONGODB_URI=mongodb+srv://kookafavorite:kookafavorite@kookafavorite.mkvgsst.mongodb.net/?retryWrites=true&w=majority&appName=KookaFavorite
+      - MONGODB_URI=${MONGODB_URI_FAVORITE}
       - JWT_SECRET=${JWT_SECRET}
+      - RECIPE_SERVICE_URL=${RECIPE_SERVICE_URL}
+    depends_on:
+      - recipe-service
 
   # Review & Comment Service (Merged)
   review-service:
@@ -197,9 +141,16 @@ services:
       - "5007:5007"
     environment:
       - PORT=5007
-      - MONGODB_URI=mongodb+srv://kookacmt:kookacmt@kookacmt.eht7alz.mongodb.net/?retryWrites=true&w=majority&appName=KookaCmt
-      - RECIPE_SERVICE_URL=http://recipe-service:5000
+      - MONGODB_URI=${MONGODB_URI_REVIEW}
+      - RECIPE_SERVICE_URL=${RECIPE_SERVICE_URL}
+      - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
+      - USER_SERVICE_URL=${USER_SERVICE_URL}
       - JWT_SECRET=${JWT_SECRET}
+    depends_on:
+      - mongo
+      - auth-service
+      - user-service
+      - recipe-service
 
   # Chatbot Service (AI Assistant with Gemini)
   chatbot-service:
@@ -212,16 +163,18 @@ services:
       - "5008:5008"
     environment:
       - PORT=5008
-      - GEMINI_API_KEY=AIzaSyCwQQJoEwPXwcnaV_ItQwf1Ere5bvQ7-8g
-      - RECIPE_SERVICE_URL=http://recipe-service:5000
-      - USER_SERVICE_URL=http://user-service:5002
-      - REVIEW_SERVICE_URL=http://review-service:5007
-      - PYTHON_COOK_SERVICE_URL=http://python_cook-service:8000
-      - MONGODB_URI=mongodb+srv://kookachatbot:kookachatbot@kookachatbot.zbekhrk.mongodb.net/?retryWrites=true&w=majority&appName=KookaChatbot
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - RECIPE_SERVICE_URL=${RECIPE_SERVICE_URL}
+      - USER_SERVICE_URL=${USER_SERVICE_URL}
+      - REVIEW_SERVICE_URL=${REVIEW_SERVICE_URL}
+      - PYTHON_COOK_SERVICE_URL=${PYTHON_COOK_SERVICE_URL}
+      - MONGODB_URI=${MONGODB_URI_CHATBOT}
     depends_on:
       - mongo
       - recipe-service
       - review-service
+      - user-service
+      - python_cook-service
 
   # API Gateway
   api-gateway:
@@ -233,17 +186,19 @@ services:
       - "3000:3000"
     environment:
       - PORT=3000
-      - AUTH_SERVICE_URL=http://auth-service:5001
-      - USER_SERVICE_URL=http://user-service:5002
-      - RECIPE_SERVICE_URL=http://recipe-service:5000
-      - PYTHON_COOK_SERVICE_URL=http://python_cook-service:8000
-      - LIKE_SERVICE_URL=http://like-service:5005
-      - FAVORITE_SERVICE_URL=http://favorite-service:5006
-      - REVIEW_SERVICE_URL=http://review-service:5007
-      - CHATBOT_SERVICE_URL=http://chatbot-service:5008
-      - MEALPLAN_SERVICE_URL=http://mealplan-service:5009
+      - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
+      - USER_SERVICE_URL=${USER_SERVICE_URL}
+      - RECIPE_SERVICE_URL=${RECIPE_SERVICE_URL}
+      - PYTHON_COOK_SERVICE_URL=${PYTHON_COOK_SERVICE_URL}
+      - LIKE_SERVICE_URL=${LIKE_SERVICE_URL}
+      - FAVORITE_SERVICE_URL=${FAVORITE_SERVICE_URL}
+      - REVIEW_SERVICE_URL=${REVIEW_SERVICE_URL}
+      - CHATBOT_SERVICE_URL=${CHATBOT_SERVICE_URL}
+      - MEALPLAN_SERVICE_URL=${MEALPLAN_SERVICE_URL}
       - JWT_SECRET=${JWT_SECRET}
       - NODE_ENV=production
+      - RATE_LIMIT_MAX_REQUESTS=${RATE_LIMIT_MAX_REQUESTS}
+      - RATE_LIMIT_WINDOW_MS=${RATE_LIMIT_WINDOW_MS}
     restart: unless-stopped
     depends_on:
       - auth-service
