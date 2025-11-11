@@ -44,14 +44,13 @@ async function createRecipe(data) {
   console.log(`[Create Recipe] Starting to create recipe: ${data.name}`);
   const startTime = Date.now();
 
-  // Upload ảnh chính và video song song
-  const [imageUrl, videoUrl] = await Promise.all([
-    data.image ? uploadIfBase64(data.image, "recipes") : Promise.resolve(null),
-    data.video ? uploadIfBase64(data.video, "recipes") : Promise.resolve(null),
-  ]);
-
-  if (imageUrl) data.image = imageUrl;
-  if (videoUrl) data.video = videoUrl;
+  // Upload chỉ ảnh chính (video không upload, chỉ lưu URL YouTube)
+  if (data.image) {
+    data.image = await uploadIfBase64(data.image, "recipes");
+  }
+  
+  // Video không upload lên Cloudinary, giữ nguyên URL YouTube
+  // Nếu không có video, model sẽ tự set default
 
   // Upload ảnh trong instructions song song
   if (Array.isArray(data.instructions)) {
@@ -103,14 +102,12 @@ async function updateRecipe(id, data) {
   console.log(`[Update Recipe] Starting to update recipe: ${id}`);
   const startTime = Date.now();
 
-  // Upload ảnh chính và video song song
-  const [imageUrl, videoUrl] = await Promise.all([
-    data.image ? uploadIfBase64(data.image, "recipes") : Promise.resolve(null),
-    data.video ? uploadIfBase64(data.video, "recipes") : Promise.resolve(null),
-  ]);
-
-  if (imageUrl) data.image = imageUrl;
-  if (videoUrl) data.video = videoUrl;
+  // Upload chỉ ảnh chính (video không upload, chỉ lưu URL YouTube)
+  if (data.image) {
+    data.image = await uploadIfBase64(data.image, "recipes");
+  }
+  
+  // Video không upload lên Cloudinary, giữ nguyên URL YouTube
 
   // Upload ảnh trong instructions song song
   if (Array.isArray(data.instructions)) {
