@@ -3,6 +3,8 @@ const path = require("path");
 
 cloudinary.config(); // Tự đọc CLOUDINARY_URL từ .env
 
+
+// Upload buffer (base64/file) lên Cloudinary
 const uploadToCloudinary = async (buffer, fileName, folder = "recipes") => {
   const ext = path.extname(fileName || "").toLowerCase();
   const imageTypes = [".jpg", ".jpeg", ".png", ".gif", ".webp"];
@@ -33,4 +35,24 @@ const uploadToCloudinary = async (buffer, fileName, folder = "recipes") => {
   });
 };
 
-module.exports = { uploadToCloudinary };
+// Upload trực tiếp từ URL lên Cloudinary
+const uploadToCloudinaryFromUrl = async (url, folder = "recipes") => {
+  // Cloudinary sẽ tự xác định loại file
+  return new Promise((resolve, reject) => {
+    cloudinary.uploader.upload(
+      url,
+      {
+        folder,
+        use_filename: true,
+        unique_filename: true,
+        resource_type: "auto", // Tự động nhận diện image/video
+      },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve(result.secure_url);
+      }
+    );
+  });
+};
+
+module.exports = { uploadToCloudinary, uploadToCloudinaryFromUrl };

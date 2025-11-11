@@ -1,6 +1,7 @@
 const Recipe = require("../models/Recipe");
 const { uploadToCloudinary } = require("../utils/cloudinary");
 const { parseBase64 } = require("../utils/parseBase64");
+const { uploadIfNeeded } = require("../utils/imageUploader");
 const axios = require("axios");
 
 const PYTHON_COOK_SERVICE_URL = process.env.PYTHON_COOK_SERVICE_URL;
@@ -34,61 +35,62 @@ async function getRecipeById(id) {
     .populate("category", "name");
 }
 
+// Giữ lại để backward compatibility, nhưng sẽ dùng uploadIfNeeded
 async function uploadIfBase64(file, folder = "recipes") {
-  if (!file) return null;
-  if (typeof file !== "string") return file;
-
-  // Nếu là base64 thì upload lên Cloudinary
-  if (file.startsWith("data:")) {
-    const { buffer, fakeFileName } = parseBase64(file);
-    return await uploadToCloudinary(buffer, fakeFileName, folder);
-  }
-
-  // Nếu là link thì giữ nguyên
-  return file;
+  return await uploadIfNeeded(file, folder);
 }
 
 async function createRecipe(data) {
-  // Upload ảnh nếu là base64
+  console.log(`[Create Recipe] Starting to create recipe: ${data.name}`);
+  const startTime = Date.now();
+
+  // Upload chỉ ảnh chính (video không upload, chỉ lưu URL YouTube)
   if (data.image) {
     data.image = await uploadIfBase64(data.image, "recipes");
   }
+  
+  // Video không upload lên Cloudinary, giữ nguyên URL YouTube
+  // Nếu không có video, model sẽ tự set default
 
-  // Upload video nếu là base64
-  if (data.video) {
-    data.video = await uploadIfBase64(data.video, "recipes");
-  }
-
-  // Upload ảnh trong từng bước nếu là base64
+  // Upload ảnh trong instructions song song
   if (Array.isArray(data.instructions)) {
-    for (let i = 0; i < data.instructions.length; i++) {
-      const step = data.instructions[i];
-
-      // Nếu step.image là mảng thì upload từng ảnh
-      if (Array.isArray(step.image)) {
-        const uploadedImages = [];
-        for (let j = 0; j < Math.min(step.image.length, 4); j++) {
-          // Giới hạn 4 ảnh
-          const img = step.image[j];
-          uploadedImages.push(await uploadIfBase64(img, "recipes/steps"));
-        }
-        step.image = uploadedImages;
-      } else if (typeof step.image === "string") {
+    console.log(`[Create Recipe] Uploading images for ${data.instructions.length} steps...`);
+    
+    // Tạo danh sách tất cả promises để upload song song
+    const uploadPromises = data.instructions.map(async (step) => {
+      // Nếu step.images là mảng thì upload từng ảnh song song
+      if (Array.isArray(step.images)) {
+        const limitedImages = step.images.slice(0, 4); // Giới hạn 4 ảnh
+        const uploadedImages = await Promise.all(
+          limitedImages.map(img => uploadIfBase64(img, "recipes/steps"))
+        );
+        step.images = uploadedImages;
+      } else if (typeof step.images === "string") {
         // Nếu chỉ có 1 ảnh string
-        step.image = [await uploadIfBase64(step.image, "recipes/steps")];
+        step.images = [await uploadIfBase64(step.images, "recipes/steps")];
       }
-    }
+      return step;
+    });
+
+    // Đợi tất cả steps upload xong
+    await Promise.all(uploadPromises);
   }
 
   try {
     const recipe = new Recipe(data);
     const saved = await recipe.save();
 
-    // Thông báo cho dịch vụ tìm kiếm để cập nhật chỉ mục
-    await notifySearchService();
+    const totalTime = Date.now() - startTime;
+    console.log(`[Create Recipe] ✅ Recipe created successfully in ${totalTime}ms`);
+
+    // Thông báo cho dịch vụ tìm kiếm để cập nhật chỉ mục (không chờ)
+    notifySearchService().catch(err => 
+      console.error('[Create Recipe] Failed to notify search service:', err.message)
+    );
 
     return saved;
   } catch (error) {
+    console.error(`[Create Recipe] ❌ Failed to create recipe:`, error.message);
     if (error.code === 11000) {
       throw new Error(`Recipe "${data.name}" already exists`);
     }
@@ -97,35 +99,38 @@ async function createRecipe(data) {
 }
 
 async function updateRecipe(id, data) {
-  // Upload ảnh chính nếu là base64
+  console.log(`[Update Recipe] Starting to update recipe: ${id}`);
+  const startTime = Date.now();
+
+  // Upload chỉ ảnh chính (video không upload, chỉ lưu URL YouTube)
   if (data.image) {
     data.image = await uploadIfBase64(data.image, "recipes");
   }
+  
+  // Video không upload lên Cloudinary, giữ nguyên URL YouTube
 
-  // Upload video nếu là base64
-  if (data.video) {
-    data.video = await uploadIfBase64(data.video, "recipes");
-  }
-
-  // Upload ảnh trong từng bước nếu là base64
+  // Upload ảnh trong instructions song song
   if (Array.isArray(data.instructions)) {
-    for (let i = 0; i < data.instructions.length; i++) {
-      const step = data.instructions[i];
- 
-      // Nếu step.images là mảng thì upload từng ảnh
+    console.log(`[Update Recipe] Uploading images for ${data.instructions.length} steps...`);
+    
+    // Tạo danh sách tất cả promises để upload song song
+    const uploadPromises = data.instructions.map(async (step) => {
+      // Nếu step.images là mảng thì upload từng ảnh song song
       if (Array.isArray(step.images)) {
-        const uploadedImages = [];
-        for (let j = 0; j < Math.min(step.images.length, 4); j++) {
-          // Giới hạn 4 ảnh
-          const img = step.images[j];
-          uploadedImages.push(await uploadIfBase64(img, "recipes/steps"));
-        }
+        const limitedImages = step.images.slice(0, 4); // Giới hạn 4 ảnh
+        const uploadedImages = await Promise.all(
+          limitedImages.map(img => uploadIfBase64(img, "recipes/steps"))
+        );
         step.images = uploadedImages;
       } else if (typeof step.images === "string") {
         // Nếu chỉ có 1 ảnh string
         step.images = [await uploadIfBase64(step.images, "recipes/steps")];
       }
-    }
+      return step;
+    });
+
+    // Đợi tất cả steps upload xong
+    await Promise.all(uploadPromises);
   }
 
   try {
@@ -136,11 +141,17 @@ async function updateRecipe(id, data) {
       .populate("cuisine", "name")
       .populate("category", "name");
 
-    // Thông báo cho dịch vụ tìm kiếm để cập nhật chỉ mục
-    await notifySearchService();
+    const totalTime = Date.now() - startTime;
+    console.log(`[Update Recipe] ✅ Recipe updated successfully in ${totalTime}ms`);
+
+    // Thông báo cho dịch vụ tìm kiếm để cập nhật chỉ mục (không chờ)
+    notifySearchService().catch(err => 
+      console.error('[Update Recipe] Failed to notify search service:', err.message)
+    );
 
     return updatedRecipe;
   } catch (error) {
+    console.error(`[Update Recipe] ❌ Failed to update recipe:`, error.message);
     if (error.code === 11000) {
       throw new Error(`Recipe "${data.name}" already exists`);
     }
