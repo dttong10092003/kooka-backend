@@ -524,24 +524,37 @@ Lưu ý:
     );
 
     // Step 3: Use AI to select best recipes for each meal time
+    // 🎯 ĐA DẠNG TỐI ĐA: Tránh trùng món giữa các bữa ăn
+    const allUsedRecipeIds = []; // Track ALL recipes used across all meals
+
+    // 🌅 Select breakfast recipes
     const selectedBreakfast = await this.selectRecipesWithAI(
       breakfastRecipes,
       `${mealPlanType} - Bữa sáng`,
-      duration
+      duration,
+      allUsedRecipeIds // Không có món nào dùng trước đó
     );
+    allUsedRecipeIds.push(...selectedBreakfast.map(r => r._id.toString()));
+
+    // 🌞 Select lunch recipes (avoid breakfast recipes)
     const selectedLunch = await this.selectRecipesWithAI(
       lunchRecipes,
       `${mealPlanType} - Bữa trưa`,
-      duration
+      duration,
+      allUsedRecipeIds // Tránh món breakfast
     );
+    allUsedRecipeIds.push(...selectedLunch.map(r => r._id.toString()));
+
+    // 🌙 Select dinner recipes (avoid breakfast + lunch recipes)
     const selectedDinner = await this.selectRecipesWithAI(
       dinnerRecipes,
       `${mealPlanType} - Bữa tối`,
-      duration
+      duration,
+      allUsedRecipeIds // Tránh món breakfast + lunch
     );
 
     console.log(
-      `🎯 AI selected: ${selectedBreakfast.length} breakfast, ${selectedLunch.length} lunch, ${selectedDinner.length} dinner`
+      `🎯 AI selected: ${selectedBreakfast.length} breakfast, ${selectedLunch.length} lunch, ${selectedDinner.length} dinner (Total unique: ${new Set([...selectedBreakfast.map(r => r._id.toString()), ...selectedLunch.map(r => r._id.toString()), ...selectedDinner.map(r => r._id.toString())]).size}/${selectedBreakfast.length + selectedLunch.length + selectedDinner.length})`
     );
 
     // Step 4: Create intelligent 7-day meal plan structure (meal-time specific)
@@ -597,8 +610,43 @@ Lưu ý:
       `📦 Found ${recipesResult.recipes.length} recipes, now filtering by category/tags/ingredients...`
     );
 
+    // ⚠️ ĐẶC BIỆT: Kiểm tra meal plan type có yêu cầu STRICT không
+    const isVegetarianStrict = mealPlanType.toLowerCase().includes('ăn chay') || 
+                                mealPlanType.toLowerCase() === 'chay';
+
     // Advanced filtering: category, tags, ingredients
     let filteredRecipes = recipesResult.recipes.filter((recipe) => {
+      // 🚫 BẮT BUỘC: Nếu là meal plan "ăn chay" → CHỈ LẤY MÓN CHAY
+      if (isVegetarianStrict) {
+        const recipeTags = recipe.tags?.map(
+          (tag) => tag.nameLowercase || tag.name?.toLowerCase() || ""
+        ) || [];
+        
+        // Kiểm tra xem có tag "chay" không
+        const isVegetarian = recipeTags.some(tag => 
+          tag.includes('chay') || 
+          tag.includes('vegetarian') || 
+          tag.includes('vegan')
+        );
+        
+        // Kiểm tra xem có nguyên liệu KHÔNG CHAY không
+        const recipeIngredients = recipe.ingredients?.map(
+          (ing) => ing.nameLowercase || ing.name?.toLowerCase() || ""
+        ) || [];
+        
+        const hasNonVegetarian = recipeIngredients.some(ing =>
+          ing.includes('thịt') || ing.includes('heo') || ing.includes('bò') ||
+          ing.includes('gà') || ing.includes('vịt') || ing.includes('cá') ||
+          ing.includes('tôm') || ing.includes('mực') || ing.includes('hải sản') ||
+          ing.includes('trứng') || ing.includes('sữa bò')
+        );
+        
+        // Nếu KHÔNG có tag chay HOẶC có nguyên liệu không chay → LOẠI BỎ
+        if (!isVegetarian || hasNonVegetarian) {
+          return false;
+        }
+      }
+
       let score = 0;
 
       // 1. Check CATEGORY (priority: exact match)
@@ -684,7 +732,7 @@ Lưu ý:
     });
 
     console.log(
-      `✅ Filtered to ${filteredRecipes.length} recipes for ${mealTime}`
+      `✅ Filtered to ${filteredRecipes.length} recipes for ${mealTime} ${isVegetarianStrict ? '(CHAY ONLY)' : ''}`
     );
     return filteredRecipes;
   }
@@ -867,7 +915,16 @@ Lưu ý:
             "hạt chia",
             "sữa đậu nành",
           ],
-          avoidIngredients: ["thịt", "cá", "tôm", "trứng", "sữa bò", "mật ong"],
+          avoidIngredients: [
+            "thịt heo",
+            "thịt bò",
+            "thịt gà",
+            "cá",
+            "tôm",
+            "trứng",
+            "sữa bò",
+            "mật ong",
+          ],
           description:
             "Bữa sáng chay đầy đủ protein thực vật, năng lượng cho ngày mới",
         },
@@ -1415,13 +1472,23 @@ Lưu ý:
   }
 
   // Use AI to intelligently select recipes (meal-time specific)
-  async selectRecipesWithAI(allRecipes, mealContext, duration) {
+  async selectRecipesWithAI(allRecipes, mealContext, duration, usedRecipeIds = []) {
     const needed = duration; // For specific meal time (e.g., 7 breakfast recipes for 7 days)
 
+    // 🚫 LOẠI BỎ món đã sử dụng trong cùng ngày
+    const availableRecipes = allRecipes.filter(r => !usedRecipeIds.includes(r._id));
+    
+    if (availableRecipes.length === 0) {
+      console.log(`⚠️ No available recipes after removing used ones. Using all recipes.`);
+      // Fallback: nếu không còn món mới, dùng lại nhưng cố gắng chọn khác
+    }
+
+    const recipesToUse = availableRecipes.length > 0 ? availableRecipes : allRecipes;
+
     // If we have enough recipes, use AI to select best ones
-    if (allRecipes.length >= needed) {
+    if (recipesToUse.length >= needed) {
       console.log(
-        `🤖 Using AI to select best ${needed} recipes for: ${mealContext}`
+        `🤖 Using AI to select best ${needed} recipes for: ${mealContext} (${usedRecipeIds.length} recipes already used)`
       );
 
       const selectionPrompt = `
@@ -1431,11 +1498,11 @@ Lưu ý:
 🎯 NHIỆM VỤ: Chọn ${needed} món ăn TỐT NHẤT cho "${mealContext}"
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📋 DANH SÁCH ${allRecipes.length} MÓN ĂN SẴN CÓ (Top ${Math.min(
+📋 DANH SÁCH ${recipesToUse.length} MÓN ĂN SẴN CÓ (Top ${Math.min(
         50,
-        allRecipes.length
+        recipesToUse.length
       )}):
-${allRecipes
+${recipesToUse
   .slice(0, 50)
   .map((r, idx) => {
     const tags = r.tags ? r.tags.map((t) => t.name || t).join(", ") : "";
@@ -1448,12 +1515,26 @@ ${allRecipes
   })
   .join("\n")}
 
+${usedRecipeIds.length > 0 ? `
+⚠️ CÁC MÓN ĐÃ DÙNG TRONG CÙNG NGÀY (TRÁNH CHỌN):
+${usedRecipeIds.join(", ")}
+` : ''}
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ✅ TIÊU CHÍ CHỌN MÓN (QUAN TRỌNG):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+🔴 QUAN TRỌNG NHẤT: 
+   • MỖI MÓN CHỈ CHỌN 1 LẦN trong ${needed} món
+   • TUYỆT ĐỐI KHÔNG lặp lại món giống nhau
+   • Nếu cần thiết dùng lại món, phải CÁCH NGÀY (ví dụ: Ngày 1 buổi sáng, Ngày 5 buổi tối)
+
 1. ⭐ RATING CAO: Ưu tiên món có rating ≥ 4.0 sao
-2. 🎨 ĐA DẠNG: Chọn món KHÁC NHAU cho ${needed} ngày - KHÔNG lặp lại món giống nhau
+
+2. 🎨 ĐA DẠNG TỐI ĐA: 
+   • ${needed} món phải là ${needed} món KHÁC NHAU HOÀN TOÀN
+   • Tránh món tương tự (ví dụ: không chọn cả "Gà xào" và "Gà chiên")
+
 3. 🍽️ PHÙ HỢP BỮA ĂN: Phải match với "${mealContext}"
    • Bữa sáng: Nhẹ, nhanh, protein + carb (trứng, bánh mì, cháo, phở...)
    • Bữa trưa: Đầy đủ, chính món (cơm, thịt, cá, rau...)
@@ -1465,10 +1546,10 @@ ${allRecipes
    • Carb (Cơm/Bún/Mì): 25%
    • Khác: 5%
 
-5. 🌈 ĐA DẠNG:
-   • Nguyên liệu chính khác nhau (gà, bò, heo, cá, tôm, đậu...)
-   • Cách chế biến khác nhau (xào, nấu, hấp, chiên, nướng...)
-   • Quốc gia/ẩm thực khác nhau (Việt, Hàn, Nhật, Ý...)
+5. 🌈 ĐA DẠNG NGUYÊN LIỆU & CHẾ BIẾN:
+   • Nguyên liệu chính KHÁC NHAU (gà, bò, heo, cá, tôm, đậu, trứng...)
+   • Cách chế biến KHÁC NHAU (xào, nấu, hấp, chiên, nướng, luộc...)
+   • Ẩm thực KHÁC NHAU (Việt, Hàn, Nhật, Ý, Thái...)
 
 6. ⏰ THỜI GIAN HỢP LÝ:
    • Bữa sáng: < 30 phút
@@ -1489,7 +1570,8 @@ Trả về ĐÚNG ${needed} ID món ăn dưới dạng JSON array (CHỈ JSON, K
 
 ⚠️ LƯU Ý:
 - Phải chọn ĐÚNG ${needed} món
-- Mỗi ID chỉ xuất hiện 1 LẦN
+- Mỗi ID chỉ xuất hiện 1 LẦN (KHÔNG trùng)
+- ${needed} món phải HOÀN TOÀN KHÁC NHAU
 - KHÔNG thêm giải thích
 - CHỈ JSON array thuần túy
 `;
@@ -1502,7 +1584,7 @@ Trả về ĐÚNG ${needed} ID món ăn dưới dạng JSON array (CHỈ JSON, K
         const jsonMatch = text.match(/\[[\s\S]*?\]/);
         if (jsonMatch) {
           const selectedIds = JSON.parse(jsonMatch[0]);
-          const selected = allRecipes
+          const selected = recipesToUse
             .filter((r) => selectedIds.includes(r._id))
             .slice(0, needed);
           console.log(
@@ -1520,24 +1602,25 @@ Trả về ĐÚNG ${needed} ID món ăn dưới dạng JSON array (CHỈ JSON, K
 
     // Fallback: Smart random selection
     console.log(`🎲 Using smart random selection for ${mealContext}...`);
-    return this.smartRandomSelection(allRecipes, needed);
+    return this.smartRandomSelection(recipesToUse, needed);
   }
 
   // Smart random selection (fallback)
   smartRandomSelection(recipes, needed) {
     const shuffled = [...recipes].sort(() => Math.random() - 0.5);
 
-    // If not enough unique recipes, allow repeats
+    // If not enough unique recipes, repeat them evenly
     if (shuffled.length < needed) {
       console.log(
-        `⚠️ Only ${shuffled.length} recipes available, will repeat some`
+        `⚠️ Only ${shuffled.length} unique recipes available for ${needed} days, will space repeats evenly`
       );
-      const result = [...shuffled];
-      while (result.length < needed) {
-        const randomRecipe =
-          shuffled[Math.floor(Math.random() * shuffled.length)];
-        result.push(randomRecipe);
+      const result = [];
+      
+      // Chia đều: Nếu có 4 món cho 7 ngày → [A, B, C, D, A, B, C]
+      for (let i = 0; i < needed; i++) {
+        result.push(shuffled[i % shuffled.length]);
       }
+      
       return result;
     }
 
@@ -1554,8 +1637,12 @@ Trả về ĐÚNG ${needed} ID món ăn dưới dạng JSON array (CHỈ JSON, K
     duration = 7
   ) {
     const plans = [];
+    const usedRecipesPerDay = {}; // Track recipes used each day to avoid duplicates
+    const globalRecipeUsage = {}; // Track when each recipe was last used (for spacing)
 
     for (let day = 0; day < duration; day++) {
+      usedRecipesPerDay[day] = new Set(); // Track recipes for this specific day
+
       const dayPlan = {
         // ❌ NO DATE - FE will add based on user's selected startDate
         morning: {},
@@ -1563,41 +1650,113 @@ Trả về ĐÚNG ${needed} ID món ăn dưới dạng JSON array (CHỈ JSON, K
         evening: {},
       };
 
-      // Breakfast
-      const breakfastRecipe = breakfastRecipes[day % breakfastRecipes.length];
+      // 🌅 Breakfast - Get recipe for this day with spacing logic
+      let breakfastRecipe = breakfastRecipes[day % breakfastRecipes.length];
+      let breakfastAttempts = 0;
+      
+      // Nếu món này vừa dùng gần đây (< 2 ngày), tìm món khác
+      while (
+        breakfastRecipe &&
+        breakfastAttempts < breakfastRecipes.length
+      ) {
+        const recipeId = breakfastRecipe._id.toString();
+        const lastUsedDay = globalRecipeUsage[recipeId];
+        
+        // Kiểm tra: Món này đã dùng trong cùng ngày HOẶC dùng quá gần (< 2 ngày trước)
+        const isTooClose = lastUsedDay !== undefined && (day - lastUsedDay) < 2;
+        const isDuplicateInDay = usedRecipesPerDay[day].has(recipeId);
+        
+        if (!isDuplicateInDay && !isTooClose) {
+          break; // Món này OK, dùng được
+        }
+        
+        // Tìm món khác
+        breakfastAttempts++;
+        breakfastRecipe = breakfastRecipes[(day + breakfastAttempts) % breakfastRecipes.length];
+      }
+      
       if (breakfastRecipe) {
+        const recipeId = breakfastRecipe._id.toString();
         dayPlan.morning = {
-          recipeId: breakfastRecipe._id.toString(), // Convert ObjectId to String
+          recipeId: recipeId,
           recipeName: breakfastRecipe.name,
           recipeImage: breakfastRecipe.image,
         };
+        usedRecipesPerDay[day].add(recipeId);
+        globalRecipeUsage[recipeId] = day; // Ghi nhận ngày sử dụng
       }
 
-      // Lunch
-      const lunchRecipe = lunchRecipes[day % lunchRecipes.length];
+      // 🌞 Lunch - Avoid duplicate with breakfast + spacing logic
+      let lunchRecipe = lunchRecipes[day % lunchRecipes.length];
+      let lunchAttempts = 0;
+      
+      while (
+        lunchRecipe &&
+        lunchAttempts < lunchRecipes.length
+      ) {
+        const recipeId = lunchRecipe._id.toString();
+        const lastUsedDay = globalRecipeUsage[recipeId];
+        
+        const isTooClose = lastUsedDay !== undefined && (day - lastUsedDay) < 2;
+        const isDuplicateInDay = usedRecipesPerDay[day].has(recipeId);
+        
+        if (!isDuplicateInDay && !isTooClose) {
+          break;
+        }
+        
+        lunchAttempts++;
+        lunchRecipe = lunchRecipes[(day + lunchAttempts) % lunchRecipes.length];
+      }
+      
       if (lunchRecipe) {
+        const recipeId = lunchRecipe._id.toString();
         dayPlan.noon = {
-          recipeId: lunchRecipe._id.toString(), // Convert ObjectId to String
+          recipeId: recipeId,
           recipeName: lunchRecipe.name,
           recipeImage: lunchRecipe.image,
         };
+        usedRecipesPerDay[day].add(recipeId);
+        globalRecipeUsage[recipeId] = day;
       }
 
-      // Dinner
-      const dinnerRecipe = dinnerRecipes[day % dinnerRecipes.length];
+      // 🌙 Dinner - Avoid duplicate with breakfast & lunch + spacing logic
+      let dinnerRecipe = dinnerRecipes[day % dinnerRecipes.length];
+      let dinnerAttempts = 0;
+      
+      while (
+        dinnerRecipe &&
+        dinnerAttempts < dinnerRecipes.length
+      ) {
+        const recipeId = dinnerRecipe._id.toString();
+        const lastUsedDay = globalRecipeUsage[recipeId];
+        
+        const isTooClose = lastUsedDay !== undefined && (day - lastUsedDay) < 2;
+        const isDuplicateInDay = usedRecipesPerDay[day].has(recipeId);
+        
+        if (!isDuplicateInDay && !isTooClose) {
+          break;
+        }
+        
+        dinnerAttempts++;
+        dinnerRecipe = dinnerRecipes[(day + dinnerAttempts) % dinnerRecipes.length];
+      }
+      
       if (dinnerRecipe) {
+        const recipeId = dinnerRecipe._id.toString();
         dayPlan.evening = {
-          recipeId: dinnerRecipe._id.toString(), // Convert ObjectId to String
+          recipeId: recipeId,
           recipeName: dinnerRecipe.name,
           recipeImage: dinnerRecipe.image,
         };
+        usedRecipesPerDay[day].add(recipeId);
+        globalRecipeUsage[recipeId] = day;
       }
 
       plans.push(dayPlan);
     }
 
     console.log(
-      `✅ Created INTELLIGENT ${plans.length} days meal plan (morning/noon/evening structure, NO date)`
+      `✅ Created INTELLIGENT ${plans.length} days meal plan (NO duplicates in same day, min 2-day spacing for repeats)`
     );
     return plans;
   }
