@@ -59,16 +59,16 @@ async function createRecipe(data) {
     
     // Tạo danh sách tất cả promises để upload song song
     const uploadPromises = data.instructions.map(async (step) => {
-      // Nếu step.image là mảng thì upload từng ảnh song song
-      if (Array.isArray(step.image)) {
-        const limitedImages = step.image.slice(0, 4); // Giới hạn 4 ảnh
+      // Nếu step.images là mảng thì upload từng ảnh song song
+      if (Array.isArray(step.images)) {
+        const limitedImages = step.images.slice(0, 4); // Giới hạn 4 ảnh
         const uploadedImages = await Promise.all(
           limitedImages.map(img => uploadIfBase64(img, "recipes/steps"))
         );
-        step.image = uploadedImages;
-      } else if (typeof step.image === "string") {
+        step.images = uploadedImages;
+      } else if (typeof step.images === "string") {
         // Nếu chỉ có 1 ảnh string
-        step.image = [await uploadIfBase64(step.image, "recipes/steps")];
+        step.images = [await uploadIfBase64(step.images, "recipes/steps")];
       }
       return step;
     });
