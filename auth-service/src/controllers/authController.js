@@ -111,11 +111,11 @@ exports.googleLogin = async (req, res) => {
                 window.opener.postMessage({
                     type: 'GOOGLE_AUTH_SUCCESS',
                     payload: data
-                }, "http://localhost:4000");
+                }, "https://kooka-web.vercel.app");
                 window.close();
             } else {
                 // Fallback: redirect to frontend with token in URL
-                window.location.href = "http://localhost:4000/auth/google/callback?token=${token}";
+                window.location.href = "https://kooka-web.vercel.app/auth/google/callback?token=${token}";
             }
         </script>
     </body>
@@ -136,10 +136,10 @@ exports.googleLogin = async (req, res) => {
                 window.opener.postMessage({
                     type: 'GOOGLE_AUTH_ERROR',
                     error: "${err.message}"
-                }, "http://localhost:4000");
+                }, "https://kooka-web.vercel.app");
                 window.close();
             } else {
-                window.location.href = "http://localhost:4000/login?error=google_auth_failed";
+                window.location.href = "https://kooka-web.vercel.app/login?error=google_auth_failed";
             }
         </script>
     </body>

@@ -11,7 +11,7 @@ const transporter = nodemailer.createTransport({
 
 // Hàm gửi email reset password
 async function sendResetPasswordEmail(email, resetToken) {
-  const resetUrl = `http://localhost:5173/reset-password?token=${resetToken}`;
+  const resetUrl = `http://kooka-web.vercel.app/reset-password?token=${resetToken}`;
   
   const mailOptions = {
     from: '"Kooka Support" <tinphan309z@gmail.com>',
@@ -58,7 +58,7 @@ html: `
       <!-- Footer -->
       <div style="background-color: #f1f1f1; padding: 15px 20px; text-align: center; font-size: 12px; color: #888;">
         © ${new Date().getFullYear()} Kooka. Mọi quyền được bảo lưu.<br>
-        <a href="https://kooka.vn" style="color: #4CAF50; text-decoration: none;">kooka.vn</a>
+        <a href="https://kooka.site" style="color: #4CAF50; text-decoration: none;">kooka.site</a>
       </div>
     </div>
   </div>
