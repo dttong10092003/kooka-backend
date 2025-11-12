@@ -21,6 +21,7 @@ async function notifySearchService() {
 // Tất cả logic DB sẽ nằm ở đây
 async function getAllRecipes() {
   return await Recipe.find()
+    .select("-instructions") // ⚡ Loại bỏ instructions để giảm tải
     .populate("ingredients", "name")
     .populate("tags", "name")
     .populate("cuisine", "name")
@@ -28,6 +29,7 @@ async function getAllRecipes() {
 }
 
 async function getRecipeById(id) {
+  // ✅ Chỉ có hàm này mới cần FULL thông tin (bao gồm instructions)
   return await Recipe.findById(id)
     .populate("ingredients", "name")
     .populate("tags", "name")
@@ -180,6 +182,7 @@ async function updateRecipeRating(id, rate, numberOfRate) {
 
 async function getTopRatedRecipes(limit = 5) {
   return await Recipe.find()
+    .select("-instructions") // ⚡ Loại bỏ instructions để giảm tải
     .sort({ rate: -1, numberOfRate: -1 }) // Sắp xếp theo rating giảm dần, nếu bằng nhau thì theo số lượng đánh giá
     .limit(limit)
     .populate("ingredients", "name")
@@ -190,6 +193,7 @@ async function getTopRatedRecipes(limit = 5) {
 
 async function getNewestRecipes(limit = 10) {
   return await Recipe.find()
+    .select("-instructions") // ⚡ Loại bỏ instructions để giảm tải
     .sort({ createdAt: -1 }) // Sắp xếp theo thời gian tạo giảm dần (mới nhất trước)
     .limit(limit)
     .populate("ingredients", "name")
@@ -200,6 +204,7 @@ async function getNewestRecipes(limit = 10) {
 
 async function getPopularRecipes(limit = 10) {
   return await Recipe.find()
+    .select("-instructions") // ⚡ Loại bỏ instructions để giảm tải
     .sort({ numberOfRate: -1, rate: -1 }) // Sắp xếp theo số lượt đánh giá giảm dần, nếu bằng nhau thì ưu tiên rating cao hơn
     .limit(limit)
     .populate("ingredients", "name")
@@ -215,6 +220,7 @@ async function getTrendingRecipes(limit = 5) {
   try {
     // Lấy tất cả recipes
     const allRecipes = await Recipe.find()
+      .select("-instructions") // ⚡ Loại bỏ instructions để giảm tải
       .populate("ingredients", "name")
       .populate("tags", "name")
       .populate("cuisine", "name")
