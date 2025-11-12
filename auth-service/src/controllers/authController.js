@@ -93,59 +93,15 @@ exports.googleLogin = async (req, res) => {
     // Loại bỏ password khỏi response
     const { password: _, ...userWithoutPassword } = req.user.toObject();
     
-    // Trả HTML page để post message về parent window
-    const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Google Login Success</title>
-    </head>
-    <body>
-        <script>
-            const data = {
-                token: "${token}",
-                user: ${JSON.stringify(userWithoutPassword)}
-            };
-            
-            if (window.opener) {
-                window.opener.postMessage({
-                    type: 'GOOGLE_AUTH_SUCCESS',
-                    payload: data
-                }, "https://kooka-web.vercel.app");
-                window.close();
-            } else {
-                // Fallback: redirect to frontend with token in URL
-                window.location.href = "https://kooka-web.vercel.app/auth/google/callback?token=${token}";
-            }
-        </script>
-    </body>
-    </html>`;
+    // Redirect trực tiếp về frontend với token
+    const userJson = encodeURIComponent(JSON.stringify(userWithoutPassword));
+    const redirectUrl = `https://kooka-web.vercel.app/auth/google/callback?token=${token}&user=${userJson}`;
     
-    res.send(html);
+    res.redirect(redirectUrl);
   } catch (err) {
-    // Trả HTML error page
-    const errorHtml = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Google Login Error</title>
-    </head>
-    <body>
-        <script>
-            if (window.opener) {
-                window.opener.postMessage({
-                    type: 'GOOGLE_AUTH_ERROR',
-                    error: "${err.message}"
-                }, "https://kooka-web.vercel.app");
-                window.close();
-            } else {
-                window.location.href = "https://kooka-web.vercel.app/login?error=google_auth_failed";
-            }
-        </script>
-    </body>
-    </html>`;
-    
-    res.send(errorHtml);
+    // Redirect về frontend với error
+    const errorUrl = `https://kooka-web.vercel.app/login?error=${encodeURIComponent(err.message)}`;
+    res.redirect(errorUrl);
   }
 };
 
