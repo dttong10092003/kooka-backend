@@ -1,5 +1,9 @@
 const Comment = require('../models/Comment');
 const reviewService = require('./reviewService');
+const axios = require('axios');
+
+// Notification service URL
+const NOTIFICATION_SERVICE_URL = process.env.NOTIFICATION_SERVICE_URL || 'http://notification-service:3012';
 
 class CommentService {
     async createComment(commentData) {
@@ -27,6 +31,17 @@ class CommentService {
         
         const comment = new Comment(commentData);
         const savedComment = await comment.save();
+
+        // 🔔 Nếu là reply, gửi thông báo cho người được reply (không chờ)
+        if (savedComment.parentCommentId) {
+            this.sendReplyNotification(
+                savedComment.parentCommentId.toString(),
+                savedComment._id.toString(),
+                savedComment.userId
+            ).catch(err => {
+                console.error('❌ Failed to send reply notification:', err.message);
+            });
+        }
 
         // Nếu là parent comment (có rating), tạo review
         if (savedComment.ratingRecipe && !savedComment.parentCommentId) {
@@ -294,6 +309,20 @@ class CommentService {
         );
 
         return commentsWithRecipe;
+    }
+
+    async sendReplyNotification(parentCommentId, replyCommentId, repliedByUserId) {
+        try {
+            await axios.post(`${NOTIFICATION_SERVICE_URL}/api/notifications/internal/reply`, {
+                parentCommentId,
+                replyCommentId,
+                repliedByUserId
+            });
+            console.log(`✅ Sent reply notification for comment ${parentCommentId}`);
+        } catch (error) {
+            console.error(`❌ Failed to send reply notification:`, error.message);
+            // Không throw error để không ảnh hưởng đến quá trình reply
+        }
     }
 }
 

@@ -19,6 +19,7 @@ const reviewRoutes = require('./routes/reviewRoute');
 const viewRoutes = require('./routes/viewRoute');
 const chatbotRoutes = require('./routes/chatbotRoute');
 const mealPlanRoutes = require('./routes/mealPlanRoute');
+const notificationRoutes = require('./routes/notificationRoute');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -87,6 +88,7 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/views', viewRoutes);
 app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/mealplans', mealPlanRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
