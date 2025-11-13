@@ -106,6 +106,17 @@ class FavoriteController {
             res.status(500).json({ error: error.message });
         }
     }
+
+    // Internal API: Lấy danh sách userIds đã favorite một recipe
+    async getUserIdsByRecipe(req, res) {
+        try {
+            const { recipeId } = req.params;
+            const userIds = await favoriteService.getUserIdsByRecipe(recipeId);
+            res.json(userIds);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    }
 }
 
 module.exports = new FavoriteController();

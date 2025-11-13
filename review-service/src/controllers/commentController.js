@@ -166,6 +166,17 @@ class CommentController {
             res.status(500).json({ error: error.message });
         }
     }
+
+    // Internal API: Lấy thông tin comment theo ID (cho notification service)
+    async getCommentById(req, res) {
+        try {
+            const { commentId } = req.params;
+            const comment = await commentService.getCommentById(commentId);
+            res.json(comment);
+        } catch (error) {
+            res.status(404).json({ error: error.message });
+        }
+    }
 }
 
 module.exports = new CommentController();

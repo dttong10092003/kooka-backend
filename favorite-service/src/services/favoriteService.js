@@ -147,6 +147,12 @@ class FavoriteService {
         // Filter ra những recipe hợp lệ
         return recipesWithFavorites.filter(recipe => recipe !== null);
     }
+
+    // Lấy danh sách userIds đã favorite một recipe (cho notification service)
+    async getUserIdsByRecipe(recipeId) {
+        const favorites = await Favorite.find({ recipeId }).lean();
+        return favorites.map(f => f.userId);
+    }
 }
 
 module.exports = new FavoriteService();

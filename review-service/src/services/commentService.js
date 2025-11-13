@@ -44,7 +44,36 @@ class CommentService {
             }
         }
 
+        // Nếu là reply (có parentCommentId), tạo thông báo
+        if (savedComment.parentCommentId) {
+            this.createReplyNotification(
+                savedComment.parentCommentId.toString(),
+                savedComment._id.toString(),
+                savedComment.userId
+            ).catch(err => {
+                console.error('❌ Failed to create reply notification:', err.message);
+            });
+        }
+
         return savedComment;
+    }
+
+    // Gọi notification service để tạo thông báo reply
+    async createReplyNotification(parentCommentId, replyCommentId, repliedByUserId) {
+        try {
+            const axios = require('axios');
+            const NOTIFICATION_SERVICE_URL = process.env.NOTIFICATION_SERVICE_URL || 'http://notification-service:3012';
+            
+            await axios.post(`${NOTIFICATION_SERVICE_URL}/api/notifications/internal/reply`, {
+                parentCommentId,
+                replyCommentId,
+                repliedByUserId
+            });
+            console.log(`✅ Reply notification sent for comment ${parentCommentId}`);
+        } catch (error) {
+            console.error('❌ Error creating reply notification:', error.message);
+            // Không throw error để không ảnh hưởng đến flow chính
+        }
     }
 
     async getCommentsByRecipeId(recipeId, page = 1, limit = 20) {
@@ -294,6 +323,15 @@ class CommentService {
         );
 
         return commentsWithRecipe;
+    }
+
+    // Lấy thông tin comment theo ID (cho notification service)
+    async getCommentById(commentId) {
+        const comment = await Comment.findById(commentId).lean();
+        if (!comment) {
+            throw new Error('Comment not found');
+        }
+        return comment;
     }
 }
 

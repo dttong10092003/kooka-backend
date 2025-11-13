@@ -25,4 +25,7 @@ router.post('/toggle', favoriteController.toggleFavorite);
 // Check multiple recipes at once
 router.post('/check-multiple', favoriteController.checkMultipleRecipes);
 
+// Internal API: Get userIds who favorited a recipe
+router.get('/recipe/:recipeId/users', favoriteController.getUserIdsByRecipe);
+
 module.exports = router;

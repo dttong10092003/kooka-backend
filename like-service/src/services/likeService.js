@@ -41,6 +41,11 @@ class LikeService {
                 
                 // Update like count in comment-service
                 await updateCommentLikeCount(commentId, count);
+
+                // Tạo thông báo cho người được like (không await để không block)
+                this.createLikeNotification(commentId, userId).catch(err => {
+                    console.error('❌ Failed to create like notification:', err.message);
+                });
                 
                 return {
                     liked: true,
@@ -50,6 +55,21 @@ class LikeService {
             }
         } catch (error) {
             throw new Error('Error toggling like: ' + error.message);
+        }
+    }
+
+    // Gọi notification service để tạo thông báo
+    async createLikeNotification(commentId, likedByUserId) {
+        try {
+            const NOTIFICATION_SERVICE_URL = process.env.NOTIFICATION_SERVICE_URL || 'http://notification-service:3012';
+            await axios.post(`${NOTIFICATION_SERVICE_URL}/api/notifications/internal/like`, {
+                commentId,
+                likedByUserId
+            });
+            console.log(`✅ Like notification sent for comment ${commentId}`);
+        } catch (error) {
+            console.error('❌ Error creating like notification:', error.message);
+            // Không throw error để không ảnh hưởng đến flow chính
         }
     }
 

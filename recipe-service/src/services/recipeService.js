@@ -18,6 +18,23 @@ async function notifySearchService() {
   }
 }
 
+// Thông báo cho notification service khi recipe được cập nhật
+async function notifyRecipeUpdate(recipeId, recipeName, recipeImage, updateType, updateDetails) {
+  try {
+    const NOTIFICATION_SERVICE_URL = process.env.NOTIFICATION_SERVICE_URL || 'http://notification-service:3012';
+    await axios.post(`${NOTIFICATION_SERVICE_URL}/api/notifications/internal/recipe-update`, {
+      recipeId,
+      recipeName,
+      recipeImage,
+      updateType,
+      updateDetails
+    });
+    console.log(`[Notify] ✅ Recipe update notification sent for ${recipeName}`);
+  } catch (err) {
+    console.error("[Notify] ❌ Failed to send recipe update notification:", err.message);
+  }
+}
+
 // Tất cả logic DB sẽ nằm ở đây
 async function getAllRecipes() {
   return await Recipe.find()
@@ -104,12 +121,34 @@ async function updateRecipe(id, data) {
   console.log(`[Update Recipe] Starting to update recipe: ${id}`);
   const startTime = Date.now();
 
+  // Lấy recipe cũ để so sánh thay đổi
+  const oldRecipe = await Recipe.findById(id);
+  if (!oldRecipe) {
+    throw new Error('Recipe not found');
+  }
+
+  // Theo dõi loại cập nhật
+  let updateType = 'GENERAL';
+  let updateDetails = 'Công thức đã được cập nhật';
+
   // Upload chỉ ảnh chính (video không upload, chỉ lưu URL YouTube)
   if (data.image) {
     data.image = await uploadIfBase64(data.image, "recipes");
   }
   
-  // Video không upload lên Cloudinary, giữ nguyên URL YouTube
+  // Kiểm tra xem có thêm video mới không
+  if (data.video && data.video !== oldRecipe.video) {
+    if (!oldRecipe.video) {
+      updateType = 'VIDEO';
+      updateDetails = 'Xem ngay video hướng dẫn chi tiết';
+    }
+  }
+
+  // Kiểm tra xem có thay đổi nguyên liệu không
+  if (data.ingredients && JSON.stringify(data.ingredients) !== JSON.stringify(oldRecipe.ingredients)) {
+    updateType = 'INGREDIENTS';
+    updateDetails = 'Công thức đã được cải tiến với nguyên liệu mới';
+  }
 
   // Upload ảnh trong instructions song song
   if (Array.isArray(data.instructions)) {
@@ -149,6 +188,17 @@ async function updateRecipe(id, data) {
     // Thông báo cho dịch vụ tìm kiếm để cập nhật chỉ mục (không chờ)
     notifySearchService().catch(err => 
       console.error('[Update Recipe] Failed to notify search service:', err.message)
+    );
+
+    // Gửi thông báo cho users đã favorite món này (không chờ)
+    notifyRecipeUpdate(
+      updatedRecipe._id.toString(),
+      updatedRecipe.name,
+      updatedRecipe.image,
+      updateType,
+      updateDetails
+    ).catch(err => 
+      console.error('[Update Recipe] Failed to send update notification:', err.message)
     );
 
     return updatedRecipe;
