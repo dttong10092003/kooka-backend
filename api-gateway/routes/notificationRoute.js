@@ -12,14 +12,15 @@ router.use(verifyToken);
 router.use('/', createProxyMiddleware({
     target: NOTIFICATION_SERVICE_URL,
     changeOrigin: true,
-    pathRewrite: {
-        '^/api/notifications': '/api/notifications'
-    },
     onProxyReq: (proxyReq, req) => {
-        // Thêm userId vào header
-        if (req.userId) {
-            proxyReq.setHeader('x-user-id', req.userId);
+        // Thêm userId vào header từ API Gateway middleware
+        if (req.headers['x-user-id']) {
+            proxyReq.setHeader('x-user-id', req.headers['x-user-id']);
         }
+    },
+    onError: (err, req, res) => {
+        console.error('Proxy error:', err);
+        res.status(500).json({ error: 'Notification service unavailable' });
     }
 }));
 
