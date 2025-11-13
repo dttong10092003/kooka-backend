@@ -96,8 +96,8 @@ class NotificationService {
             }
 
             // Lấy thông tin user đã like
-            const USER_SERVICE_URL = process.env.USER_SERVICE_URL || 'http://user-service:3002';
-            const userResponse = await axios.get(`${USER_SERVICE_URL}/api/users/${likedByUserId}`);
+            const USER_SERVICE_URL = process.env.USER_SERVICE_URL || 'http://user-service:5002';
+            const userResponse = await axios.get(`${USER_SERVICE_URL}/api/user/profile/${likedByUserId}`);
             const likedByUser = userResponse.data;
 
             // Lấy thông tin recipe
@@ -170,8 +170,8 @@ class NotificationService {
             const replyComment = replyResponse.data;
 
             // Lấy thông tin user đã reply
-            const USER_SERVICE_URL = process.env.USER_SERVICE_URL || 'http://user-service:3002';
-            const userResponse = await axios.get(`${USER_SERVICE_URL}/api/users/${repliedByUserId}`);
+            const USER_SERVICE_URL = process.env.USER_SERVICE_URL || 'http://user-service:5002';
+            const userResponse = await axios.get(`${USER_SERVICE_URL}/api/user/profile/${repliedByUserId}`);
             const repliedByUser = userResponse.data;
 
             // Lấy thông tin recipe
