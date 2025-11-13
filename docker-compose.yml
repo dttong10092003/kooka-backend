@@ -75,6 +75,7 @@ services:
     environment:
       - PORT=5009
       - MONGODB_URI=${MONGODB_URI}
+      - TZ=Asia/Ho_Chi_Minh
     depends_on:
       - mongo
 
