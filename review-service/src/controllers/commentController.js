@@ -166,6 +166,23 @@ class CommentController {
             res.status(500).json({ error: error.message });
         }
     }
+
+    // 🔔 Internal API cho notification service
+    async getCommentById(req, res) {
+        try {
+            const { commentId } = req.params;
+            const Comment = require('../models/Comment');
+            const comment = await Comment.findById(commentId).lean();
+            
+            if (!comment) {
+                return res.status(404).json({ error: 'Comment not found' });
+            }
+            
+            res.json(comment);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    }
 }
 
 module.exports = new CommentController();

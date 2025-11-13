@@ -5,6 +5,7 @@ const { uploadIfNeeded } = require("../utils/imageUploader");
 const axios = require("axios");
 
 const PYTHON_COOK_SERVICE_URL = process.env.PYTHON_COOK_SERVICE_URL;
+const NOTIFICATION_SERVICE_URL = process.env.NOTIFICATION_SERVICE_URL || 'http://notification-service:3012';
 
 async function notifySearchService() {
   try {
@@ -104,6 +105,12 @@ async function updateRecipe(id, data) {
   console.log(`[Update Recipe] Starting to update recipe: ${id}`);
   const startTime = Date.now();
 
+  // Lấy recipe cũ để so sánh thay đổi
+  const oldRecipe = await Recipe.findById(id);
+  if (!oldRecipe) {
+    throw new Error('Recipe not found');
+  }
+
   // Upload chỉ ảnh chính (video không upload, chỉ lưu URL YouTube)
   if (data.image) {
     data.image = await uploadIfBase64(data.image, "recipes");
@@ -145,6 +152,32 @@ async function updateRecipe(id, data) {
 
     const totalTime = Date.now() - startTime;
     console.log(`[Update Recipe] ✅ Recipe updated successfully in ${totalTime}ms`);
+
+    // 🔔 Phát hiện loại thay đổi và gửi thông báo
+    let updateType = 'GENERAL';
+    let updateDetails = 'Công thức đã được cập nhật';
+
+    // Kiểm tra nếu có video mới
+    if (data.video && data.video !== oldRecipe.video) {
+      updateType = 'VIDEO';
+      updateDetails = 'Video hướng dẫn mới đã được thêm';
+    }
+    // Kiểm tra nếu thay đổi nguyên liệu
+    else if (data.ingredients && JSON.stringify(data.ingredients) !== JSON.stringify(oldRecipe.ingredients)) {
+      updateType = 'INGREDIENTS';
+      updateDetails = 'Nguyên liệu đã được cập nhật';
+    }
+
+    // Gửi thông báo cho users đã favorite (không chờ)
+    notifyRecipeUpdate(
+      id,
+      updatedRecipe.name,
+      updatedRecipe.image,
+      updateType,
+      updateDetails
+    ).catch(err => {
+      console.error('[Update Recipe] Failed to send notification:', err.message);
+    });
 
     // Thông báo cho dịch vụ tìm kiếm để cập nhật chỉ mục (không chờ)
     notifySearchService().catch(err => 
@@ -308,6 +341,23 @@ async function getTrendingRecipes(limit = 5) {
   } catch (error) {
     console.error('Error in getTrendingRecipes:', error.message);
     throw error;
+  }
+}
+
+// 🔔 Hàm gửi thông báo cập nhật recipe
+async function notifyRecipeUpdate(recipeId, recipeName, recipeImage, updateType, updateDetails) {
+  try {
+    await axios.post(`${NOTIFICATION_SERVICE_URL}/api/notifications/internal/recipe-update`, {
+      recipeId,
+      recipeName,
+      recipeImage,
+      updateType,
+      updateDetails
+    });
+    console.log(`✅ Sent recipe update notification for: ${recipeName}`);
+  } catch (err) {
+    console.error('❌ Failed to send recipe update notification:', err.message);
+    // Không throw error để không ảnh hưởng đến quá trình update
   }
 }
 
