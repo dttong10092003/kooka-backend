@@ -29,10 +29,11 @@ const startCronJobs = () => {
   console.log('   ⏰ Schedule: Mỗi ngày lúc 00:00 (nửa đêm)');
   console.log('   📝 Cron: "0 0 * * *"');
   
-  // 🧪 OPTIONAL: Chạy ngay khi khởi động (để test)
-  // Uncomment dòng dưới nếu muốn test ngay
-  // console.log('\n🧪 [TEST] Chạy job ngay lập tức...');
-  // autoUpdateMealPlanStatus();
+  // 🧪 CHẠY NGAY KHI KHỞI ĐỘNG để đảm bảo update ngay khi deploy
+  console.log('\n🧪 [INIT] Chạy job ngay lập tức khi khởi động...');
+  autoUpdateMealPlanStatus().catch(err => {
+    console.error('❌ [INIT] Lỗi khi chạy auto-update:', err.message);
+  });
 
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
