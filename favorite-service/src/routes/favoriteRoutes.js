@@ -18,6 +18,9 @@ router.get('/user/:userId', favoriteController.getUserFavorites);
 // Get all users who favorited a recipe
 router.get('/recipe/:recipeId', favoriteController.getRecipeFavorites);
 
+// 🔔 Internal API - Get userIds who favorited a recipe (for notification-service)
+router.get('/recipe/:recipeId/users', favoriteController.getUserIdsByRecipe);
+
 // Protected routes (authentication handled by API Gateway)
 // Toggle favorite (add/remove)
 router.post('/toggle', favoriteController.toggleFavorite);

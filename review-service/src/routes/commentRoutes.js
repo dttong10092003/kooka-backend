@@ -31,4 +31,7 @@ router.delete('/:commentId', commentController.deleteComment);
 // Update like count (called by like-service)
 router.patch('/:commentId/likes', commentController.updateLikeCount);
 
+// 🔔 Internal API - Get comment by ID (for notification-service)
+router.get('/:commentId', commentController.getCommentById);
+
 module.exports = router;

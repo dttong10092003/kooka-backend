@@ -4,6 +4,9 @@ const axios = require('axios');
 // Comment service URL - now pointing to review-service
 const REVIEW_SERVICE_URL = process.env.REVIEW_SERVICE_URL || 'http://localhost:5007';
 
+// Notification service URL
+const NOTIFICATION_SERVICE_URL = process.env.NOTIFICATION_SERVICE_URL || 'http://notification-service:3012';
+
 // Hàm update like count trong review-service
 async function updateCommentLikeCount(commentId, likeCount) {
     try {
@@ -41,6 +44,11 @@ class LikeService {
                 
                 // Update like count in comment-service
                 await updateCommentLikeCount(commentId, count);
+                
+                // 🔔 Gửi thông báo cho người được like (không chờ)
+                this.sendLikeNotification(commentId, userId).catch(err => {
+                    console.error('❌ Failed to send like notification:', err.message);
+                });
                 
                 return {
                     liked: true,
@@ -108,6 +116,19 @@ class LikeService {
                 pages: Math.ceil(total / limit)
             }
         };
+    }
+
+    async sendLikeNotification(commentId, likedByUserId) {
+        try {
+            await axios.post(`${NOTIFICATION_SERVICE_URL}/api/notifications/internal/like`, {
+                commentId,
+                likedByUserId
+            });
+            console.log(`✅ Sent like notification for comment ${commentId}`);
+        } catch (error) {
+            console.error(`❌ Failed to send like notification:`, error.message);
+            // Không throw error để không ảnh hưởng đến quá trình like
+        }
     }
 }
 

@@ -147,6 +147,15 @@ class FavoriteService {
         // Filter ra những recipe hợp lệ
         return recipesWithFavorites.filter(recipe => recipe !== null);
     }
+
+    // 🔔 Get all userIds who favorited a recipe (for notification-service)
+    async getUserIdsByRecipe(recipeId) {
+        const favorites = await Favorite.find({ recipeId })
+            .select('userId')
+            .lean();
+        
+        return favorites.map(f => f.userId);
+    }
 }
 
 module.exports = new FavoriteService();
