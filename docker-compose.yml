@@ -176,6 +176,29 @@ services:
       - user-service
       - python_cook-service
 
+  # Notification Service
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    container_name: notification-service
+    restart: unless-stopped
+    ports:
+      - "3012:3012"
+    environment:
+      - PORT=3012
+      - MONGO_URI=${MONGO_URI_NOTIFICATION}
+      - USER_SERVICE_URL=${USER_SERVICE_URL}
+      - RECIPE_SERVICE_URL=${RECIPE_SERVICE_URL}
+      - REVIEW_SERVICE_URL=${REVIEW_SERVICE_URL}
+      - FAVORITE_SERVICE_URL=${FAVORITE_SERVICE_URL}
+    depends_on:
+      - mongo
+      - user-service
+      - recipe-service
+      - review-service
+      - favorite-service
+
   # API Gateway
   api-gateway:
     build:
@@ -195,6 +218,7 @@ services:
       - REVIEW_SERVICE_URL=${REVIEW_SERVICE_URL}
       - CHATBOT_SERVICE_URL=${CHATBOT_SERVICE_URL}
       - MEALPLAN_SERVICE_URL=${MEALPLAN_SERVICE_URL}
+      - NOTIFICATION_SERVICE_URL=${NOTIFICATION_SERVICE_URL}
       - JWT_SECRET=${JWT_SECRET}
       - NODE_ENV=production
       - RATE_LIMIT_MAX_REQUESTS=${RATE_LIMIT_MAX_REQUESTS}
@@ -210,6 +234,7 @@ services:
       - review-service
       - chatbot-service
       - mealplan-service
+      - notification-service
 
 volumes:
   mongo-data:
