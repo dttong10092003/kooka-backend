@@ -28,11 +28,11 @@ exports.registerUser = async (req, res) => {
     const exist = await User.findOne({ email });
     if (exist) return res.status(400).json({ message: "Email already exists" });
 
-    // Tạo user trong auth-service
-    const user = await authService.createUser({ firstName, lastName, email, password });
+    // Tạo user trong auth-service (chỉ lưu email, username, password, isAdmin)
+    const user = await authService.createUser({ email, password });
     const token = authService.generateToken(user);
 
-    // Gọi user-service để tạo profile
+    // Gọi user-service để tạo profile (lưu firstName, lastName)
     try {
       await callUserService("/api/user/profile", {
         userId: user._id,
@@ -147,9 +147,10 @@ exports.createAdmin = async (req, res) => {
     const exist = await User.findOne({ email });
     if (exist) return res.status(400).json({ message: "Email đã tồn tại" });
 
-    const admin = await authService.createAdminUser({ firstName, lastName, email, password });
+    // Tạo admin trong auth-service (chỉ lưu email, username, password, isAdmin)
+    const admin = await authService.createAdminUser({ email, password });
 
-    // Admin cũng cần profile bên user-service
+    // Tạo profile bên user-service (lưu firstName, lastName)
     try {
       await callUserService("/api/user/profile", {
         userId: admin._id,
@@ -158,6 +159,9 @@ exports.createAdmin = async (req, res) => {
       });
     } catch (err) {
       console.error("Lỗi khi tạo profile cho admin ở user-service:", err.message);
+      // Nếu tạo profile thất bại, xóa admin vừa tạo
+      await User.findByIdAndDelete(admin._id);
+      return res.status(500).json({ message: "Không thể tạo profile cho admin. Vui lòng thử lại." });
     }
 
     // Loại bỏ password khỏi response
