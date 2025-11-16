@@ -62,10 +62,15 @@ async function updatePassword(userId, newPassword) {
 }
 
 // Tạo admin
-async function createAdminUser(username, password) {
+async function createAdminUser({ firstName, lastName, email, password }) {
   const hashedPassword = await bcrypt.hash(password, 10);
+  const username = await generateUniqueUsername(email);
+  
   const newAdmin = new User({
     username,
+    firstName,
+    lastName,
+    email,
     password: hashedPassword,
     isAdmin: true,
   });
