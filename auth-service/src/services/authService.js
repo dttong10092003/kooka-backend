@@ -19,14 +19,12 @@ async function generateUniqueUsername(email) {
 }
 
 // Đăng ký
-async function createUser({ firstName, lastName, email, password }) {
+async function createUser({ email, password }) {
   const hashedPassword = await bcrypt.hash(password, 10);
   const username = await generateUniqueUsername(email);
 
   const newUser = new User({
     username,
-    firstName,
-    lastName,
     email,
     password: hashedPassword,
   });
@@ -62,14 +60,12 @@ async function updatePassword(userId, newPassword) {
 }
 
 // Tạo admin
-async function createAdminUser({ firstName, lastName, email, password }) {
+async function createAdminUser({ email, password }) {
   const hashedPassword = await bcrypt.hash(password, 10);
   const username = await generateUniqueUsername(email);
   
   const newAdmin = new User({
     username,
-    firstName,
-    lastName,
     email,
     password: hashedPassword,
     isAdmin: true,
