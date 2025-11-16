@@ -6,6 +6,8 @@ const userSchema = new mongoose.Schema(
     password: { type: String }, // bỏ required vì user Google có thể không có password
     googleId: { type: String, unique: true, sparse: true },
     email: { type: String, unique: true, sparse: true }, // thêm email
+    firstName: { type: String }, // tên
+    lastName: { type: String }, // họ
     isAdmin: { type: Boolean, default: false }, // true = admin, false = user thường
     resetPasswordToken: { type: String }, // token để reset password
     resetPasswordExpires: { type: Date }, // thời gian hết hạn của token

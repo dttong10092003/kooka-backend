@@ -127,20 +127,34 @@ exports.changePassword = async (req, res) => {
   }
 };
 
-// ===== Tạo admin =====
+// ===== Tạo admin phụ =====
 exports.createAdmin = async (req, res) => {
   try {
-    if (!req.user.isAdmin) return res.status(403).json({ message: "Forbidden" });
+    if (!req.user.isAdmin) return res.status(403).json({ message: "Forbidden: Chỉ admin mới có quyền tạo admin phụ" });
 
-    const { username, password } = req.body;
-    const admin = await authService.createAdminUser(username, password);
+    const { firstName, lastName, email, password } = req.body;
+
+    // Validate input
+    if (!firstName || !email || !password) {
+      return res.status(400).json({ message: "firstName, email và password là bắt buộc" });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ message: "Mật khẩu phải có ít nhất 6 ký tự" });
+    }
+
+    // Check email trùng
+    const exist = await User.findOne({ email });
+    if (exist) return res.status(400).json({ message: "Email đã tồn tại" });
+
+    const admin = await authService.createAdminUser({ firstName, lastName, email, password });
 
     // Admin cũng cần profile bên user-service
     try {
       await callUserService("/api/user/profile", {
         userId: admin._id,
-        firstName: "Admin",
-        lastName: "",
+        firstName: firstName,
+        lastName: lastName || "",
       });
     } catch (err) {
       console.error("Lỗi khi tạo profile cho admin ở user-service:", err.message);
@@ -148,7 +162,10 @@ exports.createAdmin = async (req, res) => {
 
     // Loại bỏ password khỏi response
     const { password: _, ...adminWithoutPassword } = admin.toObject();
-    res.status(201).json(adminWithoutPassword);
+    res.status(201).json({ 
+      message: "Tạo admin phụ thành công",
+      admin: adminWithoutPassword 
+    });
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
