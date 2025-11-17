@@ -20,10 +20,13 @@ router.post("/forgot-password", proxyAuthService);
 router.post("/reset-password", proxyAuthService);
 router.post("/reset-password/:token", proxyAuthService);
 
-// Google OAuth routes
+// Google OAuth routes (for Web)
 router.get("/google", proxyAuthService);
 router.get("/google/callback", proxyAuthService);
 router.get("/success", proxyAuthService);
 router.get("/failure", proxyAuthService);
+
+// Google Login for Mobile (React Native)
+router.post("/google/mobile", proxyAuthService);
 
 module.exports = router;
