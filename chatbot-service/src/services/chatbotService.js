@@ -338,16 +338,32 @@ Lưu ý:
               searchResult.recipes.length > 0
             ) {
               const matchedRecipe = searchResult.recipes[0];
-              data.recipe = matchedRecipe;
-
-              // Get reviews and comments for this recipe
+              
+              // 🔴 QUAN TRỌNG: Phải fetch FULL recipe details bằng ID để có đầy đủ instructions
               if (matchedRecipe._id) {
+                console.log(`🔍 Found recipe "${matchedRecipe.name}", fetching full details...`);
+                const fullRecipe = await dataFetchService.getRecipeById(
+                  matchedRecipe._id
+                );
+                
+                if (fullRecipe) {
+                  data.recipe = fullRecipe;
+                  console.log(`✅ Full recipe loaded with ${fullRecipe.instructions?.length || 0} instruction steps`);
+                } else {
+                  // Fallback to search result if getById fails
+                  data.recipe = matchedRecipe;
+                  console.log(`⚠️ Fallback to search result (may miss instructions)`);
+                }
+
+                // Get reviews and comments for this recipe
                 data.reviews = await dataFetchService.getReviewsByRecipeId(
                   matchedRecipe._id
                 );
                 data.comments = await dataFetchService.getCommentsByRecipeId(
                   matchedRecipe._id
                 );
+              } else {
+                data.recipe = matchedRecipe;
               }
 
               console.log(`Found recipe in database: ${matchedRecipe.name}`);
