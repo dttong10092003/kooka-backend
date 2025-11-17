@@ -1941,29 +1941,47 @@ QUAN TRỌNG - Quy tắc trả lời:
         if (hasInstructions) {
           // Có instructions - BẮT BUỘC phải trình bày đầy đủ
           contextPrompt +=
-            "\n\n🔴 QUAN TRỌNG - Món này CÓ HƯỚNG DẪN CHI TIẾT!\n";
+            "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
           contextPrompt +=
-            `Bạn PHẢI trình bày ĐẦY ĐỦ tất cả ${recipe.instructions.length} bước làm theo format:\n\n`;
+            "🔴 QUAN TRỌNG TUYỆT ĐỐI - YÊU CẦU BẮT BUỘC:\n";
           contextPrompt +=
-            "---\n**Các bước làm:**\n\n";
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
           contextPrompt +=
-            "**Bước 1: [Tiêu đề bước 1]**\n";
+            `Món này có SẴN ${recipe.instructions.length} bước hướng dẫn chi tiết trong data JSON!\n\n`;
           contextPrompt +=
-            "[Mô tả chi tiết bước 1]\n\n";
+            "⛔ NGHIÊM CẤM:\n";
           contextPrompt +=
-            "**Bước 2: [Tiêu đề bước 2]**\n";
+            "- KHÔNG ĐƯỢC tự sáng tác, bịa đặt, hoặc thêm thắt bước nào\n";
           contextPrompt +=
-            "[Mô tả chi tiết bước 2]\n\n";
+            "- KHÔNG ĐƯỢC thay đổi tiêu đề (title) của bước\n";
           contextPrompt +=
-            "...(tiếp tục cho đến hết tất cả các bước)\n";
+            "- KHÔNG ĐƯỢC viết lại nội dung (subTitle)\n";
           contextPrompt +=
-            "---\n\n";
+            "- KHÔNG ĐƯỢC thay đổi thứ tự các bước\n\n";
           contextPrompt +=
-            "✅ KHÔNG ĐƯỢC bỏ qua hoặc tóm tắt bất kỳ bước nào!\n";
+            "✅ BẮT BUỘC:\n";
           contextPrompt +=
-            "✅ Sử dụng đúng title và subTitle từ data!\n";
+            "- COPY CHÍNH XÁC từng title từ JSON data\n";
           contextPrompt +=
-            "✅ Trình bày theo format markdown đẹp với emoji phù hợp!\n";
+            "- COPY CHÍNH XÁC từng subTitle (nếu là Array thì nối lại bằng dấu chấm hoặc xuống dòng)\n";
+          contextPrompt +=
+            `- Phải có ĐỦ ${recipe.instructions.length} bước, KHÔNG ĐƯỢC thiếu bất kỳ bước nào\n\n`;
+          contextPrompt +=
+            "📋 FORMAT BẮT BUỘC:\n\n";
+          contextPrompt +=
+            "**Các bước làm:**\n\n";
+          contextPrompt +=
+            '**Bước 1: [COPY CHÍNH XÁC "title" từ instructions[0]]**\n';
+          contextPrompt +=
+            '[COPY CHÍNH XÁC "subTitle" từ instructions[0] - nếu là Array thì format thành danh sách hoặc đoạn văn]\n\n';
+          contextPrompt +=
+            '**Bước 2: [COPY CHÍNH XÁC "title" từ instructions[1]]**\n';
+          contextPrompt +=
+            '[COPY CHÍNH XÁC "subTitle" từ instructions[1]]\n\n';
+          contextPrompt +=
+            "...(tiếp tục cho đến hết tất cả các bước)\n\n";
+          contextPrompt +=
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
         } else {
           // Không có instructions
           contextPrompt +=
