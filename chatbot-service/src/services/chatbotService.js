@@ -1919,8 +1919,44 @@ QUAN TRỌNG - Quy tắc trả lời:
           contextPrompt += JSON.stringify({ reviews: reviewsSummary }, null, 2);
         }
 
-        contextPrompt +=
-          "\n\nHãy trình bày CHI TIẾT công thức này một cách đầy đủ, bao gồm: mô tả, nguyên liệu (với số lượng nếu có), các bước làm, thời gian, độ khó, calo, v.v. Trình bày theo format dễ đọc với emoji phù hợp.";
+        // 🔴 QUAN TRỌNG: Kiểm tra xem có instructions hay không
+        const hasInstructions = recipe.instructions && recipe.instructions.length > 0;
+        
+        if (hasInstructions) {
+          // Có instructions - BẮT BUỘC phải trình bày đầy đủ
+          contextPrompt +=
+            "\n\n🔴 QUAN TRỌNG - Món này CÓ HƯỚNG DẪN CHI TIẾT!\n";
+          contextPrompt +=
+            `Bạn PHẢI trình bày ĐẦY ĐỦ tất cả ${recipe.instructions.length} bước làm theo format:\n\n`;
+          contextPrompt +=
+            "---\n**Các bước làm:**\n\n";
+          contextPrompt +=
+            "**Bước 1: [Tiêu đề bước 1]**\n";
+          contextPrompt +=
+            "[Mô tả chi tiết bước 1]\n\n";
+          contextPrompt +=
+            "**Bước 2: [Tiêu đề bước 2]**\n";
+          contextPrompt +=
+            "[Mô tả chi tiết bước 2]\n\n";
+          contextPrompt +=
+            "...(tiếp tục cho đến hết tất cả các bước)\n";
+          contextPrompt +=
+            "---\n\n";
+          contextPrompt +=
+            "✅ KHÔNG ĐƯỢC bỏ qua hoặc tóm tắt bất kỳ bước nào!\n";
+          contextPrompt +=
+            "✅ Sử dụng đúng title và subTitle từ data!\n";
+          contextPrompt +=
+            "✅ Trình bày theo format markdown đẹp với emoji phù hợp!\n";
+        } else {
+          // Không có instructions
+          contextPrompt +=
+            "\n\n⚠️ LƯU Ý: Món này CHƯA có hướng dẫn chi tiết các bước làm trong database.\n";
+          contextPrompt +=
+            'Hãy thông báo: "Hiện Kooka chưa có thông tin chi tiết các bước làm cho món này. Mong bạn thông cảm!"\n';
+          contextPrompt +=
+            "Nhưng vẫn trình bày đầy đủ các thông tin khác: mô tả, nguyên liệu, thời gian, độ khó, calo...\n";
+        }
       }
       // Handle multiple recipes list
       else if (relevantData.recipes && relevantData.recipes.length > 0) {
