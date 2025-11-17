@@ -130,4 +130,5 @@ module.exports = {
   createAdminUser,
   forgotPassword,
   resetPassword,
+  generateUniqueUsername,
 };

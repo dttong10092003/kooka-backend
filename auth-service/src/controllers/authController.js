@@ -110,6 +110,76 @@ exports.googleSuccess = (req, res) => {
   res.send("Google login success!");
 };
 
+// ===== Google Login for Mobile (React Native) =====
+exports.googleLoginMobile = async (req, res) => {
+  try {
+    const { idToken, email, googleId, firstName, lastName, avatar } = req.body;
+
+    // Validate input
+    if (!email || !googleId) {
+      return res.status(400).json({ message: "Email và googleId là bắt buộc" });
+    }
+
+    // Tìm user theo googleId hoặc email
+    let user = await User.findOne({
+      $or: [{ googleId: googleId }, { email: email }]
+    });
+
+    if (user) {
+      // User đã tồn tại - cập nhật googleId nếu chưa có
+      if (!user.googleId) {
+        user.googleId = googleId;
+        await user.save();
+      }
+    } else {
+      // Tạo user mới trong auth-service
+      const username = await authService.generateUniqueUsername ? 
+        await authService.generateUniqueUsername(email) : 
+        email.split('@')[0];
+      
+      user = new User({
+        googleId: googleId,
+        username: username,
+        email: email,
+      });
+      
+      await user.save();
+
+      // Tạo profile bên user-service
+      try {
+        await callUserService("/api/user/profile", {
+          userId: user._id,
+          firstName: firstName || username,
+          lastName: lastName || "",
+          avatar: avatar || null,
+        });
+      } catch (err) {
+        console.error("❌ Lỗi khi tạo profile ở user-service:", err.message);
+      }
+    }
+
+    // Generate JWT token
+    const token = authService.generateToken(user);
+
+    // Loại bỏ password khỏi response
+    const { password: _, ...userWithoutPassword } = user.toObject();
+
+    res.status(200).json({
+      success: true,
+      message: "Google login successful",
+      token: token,
+      user: userWithoutPassword
+    });
+
+  } catch (err) {
+    console.error("❌ Google login mobile error:", err);
+    res.status(500).json({ 
+      success: false,
+      message: err.message || "Google login failed" 
+    });
+  }
+};
+
 // ===== Đổi mật khẩu =====
 exports.changePassword = async (req, res) => {
   try {

@@ -31,6 +31,7 @@ router.post("/forgot-password", authController.forgotPassword);
 router.post("/reset-password", authController.resetPassword);
 router.post("/reset-password/:token", authController.resetPassword);
 
+// Google Login for Web (OAuth flow)
 router.get("/google", passport.authenticate("google", { scope: ["profile", "email"] }));
 router.get("/google/callback",
   passport.authenticate("google", { session: false, failureRedirect: "/auth/failure" }),
@@ -38,6 +39,9 @@ router.get("/google/callback",
 );
 router.get("/success", authController.googleSuccess);
 router.get("/failure", (req, res) => res.send("Google login failed"));
+
+// Google Login for Mobile (React Native)
+router.post("/google/mobile", authController.googleLoginMobile);
 
 
 // Only super admin create new admin
