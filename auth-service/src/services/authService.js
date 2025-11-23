@@ -19,7 +19,7 @@ async function generateUniqueUsername(email) {
 }
 
 // Đăng ký
-async function createUser({ email, password }) {
+async function createUser({ email, password, firstName, lastName }) {
   const hashedPassword = await bcrypt.hash(password, 10);
   const username = await generateUniqueUsername(email);
 
@@ -34,6 +34,8 @@ async function createUser({ email, password }) {
     isVerified: false, // Chưa xác thực
     verificationToken: hashedToken,
     verificationTokenExpires: Date.now() + 24 * 3600000, // 24 giờ
+    tempFirstName: firstName, // Lưu tạm firstName
+    tempLastName: lastName, // Lưu tạm lastName
   });
 
   const savedUser = await newUser.save();
@@ -139,7 +141,7 @@ async function resetPassword(token, newPassword) {
 }
 
 // Verify Email - Xác thực email
-async function verifyEmail(token, firstName, lastName) {
+async function verifyEmail(token) {
   const axios = require("axios");
   const USER_SERVICE_URL = process.env.USER_SERVICE_URL || "http://localhost:5002";
   
@@ -156,23 +158,41 @@ async function verifyEmail(token, firstName, lastName) {
     throw new Error("Token không hợp lệ hoặc đã hết hạn");
   }
 
+  // Lấy firstName và lastName đã lưu từ lúc đăng ký
+  const firstName = user.tempFirstName || user.username;
+  const lastName = user.tempLastName || user.username;
+
   // Xác thực email
   user.isVerified = true;
   user.verificationToken = undefined;
   user.verificationTokenExpires = undefined;
+  user.tempFirstName = undefined; // Xóa temp data
+  user.tempLastName = undefined; // Xóa temp data
   await user.save();
 
   // Tạo profile ở user-service sau khi verify thành công
   try {
-    await axios.post(`${USER_SERVICE_URL}/api/user/profile`, {
-      userId: user._id,
-      firstName: firstName || user.username,
-      lastName: lastName || "",
-    });
-    console.log("✅ Profile created successfully after verification");
+    // Kiểm tra xem profile đã tồn tại chưa
+    const checkProfile = await axios.get(`${USER_SERVICE_URL}/api/user/profile/${user._id}`);
+    if (checkProfile.data) {
+      console.log("✅ Profile already exists, skip creation");
+    }
   } catch (error) {
-    console.error("❌ Lỗi khi tạo profile sau verification:", error.message);
-    // Không throw error, user đã được verify
+    // Nếu không tìm thấy profile (404) thì tạo mới
+    if (error.response?.status === 404) {
+      try {
+        await axios.post(`${USER_SERVICE_URL}/api/user/profile`, {
+          userId: user._id,
+          firstName: firstName,
+          lastName: lastName,
+        });
+        console.log("✅ Profile created successfully after verification");
+      } catch (createError) {
+        console.error("❌ Lỗi khi tạo profile:", createError.response?.data || createError.message);
+      }
+    } else {
+      console.error("❌ Lỗi khi kiểm tra profile:", error.message);
+    }
   }
 
   return { message: "Xác thực email thành công" };

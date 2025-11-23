@@ -46,7 +46,6 @@ router.post("/google/mobile", authController.googleLoginMobile);
 // Email Verification routes
 router.get("/verify-email", authController.verifyEmail);
 router.get("/verify-email/:token", authController.verifyEmail);
-router.post("/verify-email", authController.verifyEmail); // Hỗ trợ POST với firstName, lastName
 router.post("/resend-verification", authController.resendVerificationEmail);
 
 

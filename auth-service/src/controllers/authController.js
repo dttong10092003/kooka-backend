@@ -22,15 +22,20 @@ async function callUserService(path, data) {
 // ===== Đăng ký =====
 exports.registerUser = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { firstName, lastName, email, password } = req.body;
+
+    // Validate password length
+    if (!password || password.length < 6) {
+      return res.status(400).json({ message: "Mật khẩu phải có ít nhất 6 ký tự" });
+    }
 
     // Check email trùng
     const exist = await User.findOne({ email });
     if (exist) return res.status(400).json({ message: "Email already exists" });
 
-    // Tạo user trong auth-service (chỉ lưu email, username, password, isAdmin)
+    // Tạo user trong auth-service (lưu email, username, password, firstName, lastName tạm)
     // User sẽ có isVerified = false và sẽ nhận email xác thực
-    const user = await authService.createUser({ email, password });
+    const user = await authService.createUser({ email, password, firstName, lastName });
     
     // Loại bỏ password khỏi response
     const { password: _, ...userWithoutPassword } = user.toObject();
@@ -306,13 +311,12 @@ exports.verifyEmail = async (req, res) => {
   try {
     // Hỗ trợ cả 3 cách: token từ URL params, query, hoặc body
     const token = req.params.token || req.query.token || req.body.token;
-    const { firstName, lastName } = req.body;
     
     if (!token) {
       return res.status(400).json({ message: "Token là bắt buộc" });
     }
 
-    const result = await authService.verifyEmail(token, firstName, lastName);
+    const result = await authService.verifyEmail(token);
     res.json(result);
   } catch (err) {
     res.status(400).json({ message: err.message });
