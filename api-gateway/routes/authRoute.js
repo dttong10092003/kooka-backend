@@ -29,4 +29,10 @@ router.get("/failure", proxyAuthService);
 // Google Login for Mobile (React Native)
 router.post("/google/mobile", proxyAuthService);
 
+// Email Verification routes
+router.get("/verify-email", proxyAuthService);
+router.get("/verify-email/:token", proxyAuthService);
+router.post("/verify-email", proxyAuthService); // Hỗ trợ POST với firstName, lastName
+router.post("/resend-verification", proxyAuthService);
+
 module.exports = router;

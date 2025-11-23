@@ -22,30 +22,23 @@ async function callUserService(path, data) {
 // ===== Đăng ký =====
 exports.registerUser = async (req, res) => {
   try {
-    const { firstName, lastName, email, password } = req.body;
+    const { email, password } = req.body;
 
     // Check email trùng
     const exist = await User.findOne({ email });
     if (exist) return res.status(400).json({ message: "Email already exists" });
 
     // Tạo user trong auth-service (chỉ lưu email, username, password, isAdmin)
+    // User sẽ có isVerified = false và sẽ nhận email xác thực
     const user = await authService.createUser({ email, password });
-    const token = authService.generateToken(user);
-
-    // Gọi user-service để tạo profile (lưu firstName, lastName)
-    try {
-      await callUserService("/api/user/profile", {
-        userId: user._id,
-        firstName,
-        lastName,
-      });
-    } catch (err) {
-      console.error("❌ Lỗi khi tạo profile ở user-service:", err.message);
-    }
-
+    
     // Loại bỏ password khỏi response
     const { password: _, ...userWithoutPassword } = user.toObject();
-    res.status(201).json({ token, user: userWithoutPassword });
+    res.status(201).json({ 
+      message: "Đăng ký thành công! Vui lòng kiểm tra email để xác thực tài khoản.",
+      user: userWithoutPassword,
+      needVerification: true
+    });
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -60,6 +53,14 @@ exports.loginUser = async (req, res) => {
 
     const valid = await authService.comparePassword(password, user.password);
     if (!valid) return res.status(401).json({ message: "Invalid credentials" });
+
+    // Kiểm tra xác thực email
+    if (!user.isVerified) {
+      return res.status(403).json({ 
+        message: "Email chưa được xác thực. Vui lòng kiểm tra email của bạn.",
+        isVerified: false 
+      });
+    }
 
     const token = authService.generateToken(user);
     // Loại bỏ password khỏi response
@@ -296,5 +297,39 @@ exports.getUserById = async (req, res) => {
     res.json(user);
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+};
+
+// ===== Verify Email =====
+exports.verifyEmail = async (req, res) => {
+  try {
+    // Hỗ trợ cả 3 cách: token từ URL params, query, hoặc body
+    const token = req.params.token || req.query.token || req.body.token;
+    const { firstName, lastName } = req.body;
+    
+    if (!token) {
+      return res.status(400).json({ message: "Token là bắt buộc" });
+    }
+
+    const result = await authService.verifyEmail(token, firstName, lastName);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
+// ===== Resend Verification Email =====
+exports.resendVerificationEmail = async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ message: "Email là bắt buộc" });
+    }
+
+    const result = await authService.resendVerificationEmail(email);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
   }
 };

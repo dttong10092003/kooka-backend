@@ -9,6 +9,9 @@ const userSchema = new mongoose.Schema(
     isAdmin: { type: Boolean, default: false }, // true = admin, false = user thường
     resetPasswordToken: { type: String }, // token để reset password
     resetPasswordExpires: { type: Date }, // thời gian hết hạn của token
+    isVerified: { type: Boolean, default: false }, // xác thực email
+    verificationToken: { type: String }, // token để verify email
+    verificationTokenExpires: { type: Date }, // thời gian hết hạn của verification token
   },
   { timestamps: true }
 );

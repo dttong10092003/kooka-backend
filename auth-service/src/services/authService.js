@@ -23,13 +23,30 @@ async function createUser({ email, password }) {
   const hashedPassword = await bcrypt.hash(password, 10);
   const username = await generateUniqueUsername(email);
 
+  // Tạo verification token
+  const verificationToken = crypto.randomBytes(32).toString("hex");
+  const hashedToken = crypto.createHash("sha256").update(verificationToken).digest("hex");
+
   const newUser = new User({
     username,
     email,
     password: hashedPassword,
+    isVerified: false, // Chưa xác thực
+    verificationToken: hashedToken,
+    verificationTokenExpires: Date.now() + 24 * 3600000, // 24 giờ
   });
 
-  return await newUser.save();
+  const savedUser = await newUser.save();
+
+  // Gửi email xác thực
+  try {
+    await emailService.sendVerificationEmail(email, verificationToken);
+  } catch (error) {
+    console.error("❌ Lỗi khi gửi email xác thực:", error.message);
+    // Không throw error để vẫn cho phép user đăng ký
+  }
+
+  return savedUser;
 }
 
 // Tìm user theo username hoặc email
@@ -121,6 +138,72 @@ async function resetPassword(token, newPassword) {
   return { message: "Mật khẩu đã được đặt lại thành công" };
 }
 
+// Verify Email - Xác thực email
+async function verifyEmail(token, firstName, lastName) {
+  const axios = require("axios");
+  const USER_SERVICE_URL = process.env.USER_SERVICE_URL || "http://localhost:5002";
+  
+  // Hash token từ URL để so sánh với token trong DB
+  const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+  // Tìm user với token hợp lệ và chưa hết hạn
+  const user = await User.findOne({
+    verificationToken: hashedToken,
+    verificationTokenExpires: { $gt: Date.now() },
+  });
+
+  if (!user) {
+    throw new Error("Token không hợp lệ hoặc đã hết hạn");
+  }
+
+  // Xác thực email
+  user.isVerified = true;
+  user.verificationToken = undefined;
+  user.verificationTokenExpires = undefined;
+  await user.save();
+
+  // Tạo profile ở user-service sau khi verify thành công
+  try {
+    await axios.post(`${USER_SERVICE_URL}/api/user/profile`, {
+      userId: user._id,
+      firstName: firstName || user.username,
+      lastName: lastName || "",
+    });
+    console.log("✅ Profile created successfully after verification");
+  } catch (error) {
+    console.error("❌ Lỗi khi tạo profile sau verification:", error.message);
+    // Không throw error, user đã được verify
+  }
+
+  return { message: "Xác thực email thành công" };
+}
+
+// Gửi lại email verification
+async function resendVerificationEmail(email) {
+  const user = await User.findOne({ email });
+  
+  if (!user) {
+    throw new Error("Email không tồn tại trong hệ thống");
+  }
+
+  if (user.isVerified) {
+    throw new Error("Tài khoản đã được xác thực");
+  }
+
+  // Tạo token mới
+  const verificationToken = crypto.randomBytes(32).toString("hex");
+  const hashedToken = crypto.createHash("sha256").update(verificationToken).digest("hex");
+
+  user.verificationToken = hashedToken;
+  user.verificationTokenExpires = Date.now() + 24 * 3600000; // 24 giờ
+  await user.save();
+
+  // Gửi email
+  await emailService.sendVerificationEmail(email, verificationToken);
+
+  return { message: "Email xác thực đã được gửi lại" };
+}
+
 module.exports = {
   createUser,
   findUserByUsernameOrEmail,
@@ -131,4 +214,6 @@ module.exports = {
   forgotPassword,
   resetPassword,
   generateUniqueUsername,
+  verifyEmail,
+  resendVerificationEmail,
 };
