@@ -12,6 +12,8 @@ const userSchema = new mongoose.Schema(
     isVerified: { type: Boolean, default: false }, // xác thực email
     verificationToken: { type: String }, // token để verify email
     verificationTokenExpires: { type: Date }, // thời gian hết hạn của verification token
+    tempFirstName: { type: String }, // Lưu tạm firstName từ form đăng ký
+    tempLastName: { type: String }, // Lưu tạm lastName từ form đăng ký
   },
   { timestamps: true }
 );
