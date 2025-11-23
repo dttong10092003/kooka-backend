@@ -78,7 +78,7 @@ html: `
 
 // Hàm gửi email xác thực tài khoản
 async function sendVerificationEmail(email, verificationToken) {
-  const verificationUrl = `http://kooka-web.vercel.app/verify-email?token=${verificationToken}`;
+  const verificationUrl = `https://kooka-web.vercel.app/verify-email?token=${verificationToken}`;
   
   const mailOptions = {
     from: '"Kooka Support" <tinphan309z@gmail.com>',
