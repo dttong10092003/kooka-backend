@@ -54,8 +54,9 @@ exports.loginUser = async (req, res) => {
     const valid = await authService.comparePassword(password, user.password);
     if (!valid) return res.status(401).json({ message: "Invalid credentials" });
 
-    // Kiểm tra xác thực email
-    if (!user.isVerified) {
+    // Kiểm tra xác thực email (chỉ với tài khoản mới có field isVerified)
+    // Tài khoản cũ không có field này sẽ được phép login (backward compatibility)
+    if (user.isVerified === false) {
       return res.status(403).json({ 
         message: "Email chưa được xác thực. Vui lòng kiểm tra email của bạn.",
         isVerified: false 
