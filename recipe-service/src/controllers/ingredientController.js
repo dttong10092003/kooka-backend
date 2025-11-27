@@ -13,7 +13,7 @@ exports.getIngredient = async (req, res) => {
   try {
     const ingredient = await ingredientService.getIngredientById(req.params.id);
     if (!ingredient)
-      return res.status(404).json({ message: "Ingredient not found" });
+      return res.status(404).json({ message: "Không tìm thấy nguyên liệu" });
     res.json(ingredient);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -36,7 +36,7 @@ exports.updateIngredient = async (req, res) => {
       req.body
     );
     if (!ingredient)
-      return res.status(404).json({ message: "Ingredient not found" });
+      return res.status(404).json({ message: "Không tìm thấy nguyên liệu" });
     res.json(ingredient);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -47,8 +47,8 @@ exports.deleteIngredient = async (req, res) => {
   try {
     const ingredient = await ingredientService.deleteIngredient(req.params.id);
     if (!ingredient)
-      return res.status(404).json({ message: "Ingredient not found" });
-    res.json({ message: "Ingredient deleted successfully" });
+      return res.status(404).json({ message: "Không tìm thấy nguyên liệu" });
+    res.json({ message: "Xóa nguyên liệu thành công" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

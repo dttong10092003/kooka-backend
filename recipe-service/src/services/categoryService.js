@@ -14,7 +14,7 @@ async function createCategory(data) {
     return await category.save();
   } catch (error) {
     if (error.code === 11000) {
-      throw new Error(`Category "${data.name}" already exists`);
+      throw new Error(`Danh mục "${data.name}" đã tồn tại`);
     }
     throw error;
   }
@@ -25,7 +25,7 @@ async function updateCategory(id, data) {
     return await Category.findByIdAndUpdate(id, data, { new: true });
   } catch (error) {
     if (error.code === 11000) {
-      throw new Error(`Category "${data.name}" already exists`);
+      throw new Error(`Danh mục "${data.name}" đã tồn tại`);
     }
     throw error;
   }

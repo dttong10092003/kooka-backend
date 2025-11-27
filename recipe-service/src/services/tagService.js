@@ -17,7 +17,7 @@ async function createTag(data) {
     return await tag.save();
   } catch (error) {
     if (error.code === 11000) {
-      throw new Error(`Tag "${data.name}" already exists`);
+      throw new Error(`Thẻ "${data.name}" đã tồn tại`);
     }
     throw error;
   }
@@ -29,7 +29,7 @@ async function updateTag(id, data) {
     return await Tag.findByIdAndUpdate(id, data, { new: true });
   } catch (error) {
     if (error.code === 11000) {
-      throw new Error(`Tag "${data.name}" already exists`);
+      throw new Error(`Thẻ "${data.name}" đã tồn tại`);
     }
     throw error;
   }

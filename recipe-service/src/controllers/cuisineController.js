@@ -12,7 +12,7 @@ exports.getCuisines = async (req, res) => {
 exports.getCuisine = async (req, res) => {
   try {
     const cuisine = await cuisineService.getCuisineById(req.params.id);
-    if (!cuisine) return res.status(404).json({ message: "Cuisine not found" });
+    if (!cuisine) return res.status(404).json({ message: "Không tìm thấy ẩm thực" });
     res.json(cuisine);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -31,7 +31,7 @@ exports.createCuisine = async (req, res) => {
 exports.updateCuisine = async (req, res) => {
   try {
     const cuisine = await cuisineService.updateCuisine(req.params.id, req.body);
-    if (!cuisine) return res.status(404).json({ message: "Cuisine not found" });
+    if (!cuisine) return res.status(404).json({ message: "Không tìm thấy ẩm thực" });
     res.json(cuisine);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -41,8 +41,8 @@ exports.updateCuisine = async (req, res) => {
 exports.deleteCuisine = async (req, res) => {
   try {
     const cuisine = await cuisineService.deleteCuisine(req.params.id);
-    if (!cuisine) return res.status(404).json({ message: "Cuisine not found" });
-    res.json({ message: "Cuisine deleted successfully" });
+    if (!cuisine) return res.status(404).json({ message: "Không tìm thấy ẩm thực" });
+    res.json({ message: "Xóa ẩm thực thành công" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
