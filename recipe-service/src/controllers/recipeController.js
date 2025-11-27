@@ -12,7 +12,7 @@ exports.getRecipes = async (req, res) => {
 exports.getRecipe = async (req, res) => {
   try {
     const recipe = await recipeService.getRecipeById(req.params.id);
-    if (!recipe) return res.status(404).json({ message: "Recipe not found" });
+    if (!recipe) return res.status(404).json({ message: "Không tìm thấy công thức" });
     res.json(recipe);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -31,7 +31,7 @@ exports.createRecipe = async (req, res) => {
 exports.updateRecipe = async (req, res) => {
   try {
     const recipe = await recipeService.updateRecipe(req.params.id, req.body);
-    if (!recipe) return res.status(404).json({ message: "Recipe not found" });
+    if (!recipe) return res.status(404).json({ message: "Không tìm thấy công thức" });
     res.json(recipe);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -41,8 +41,8 @@ exports.updateRecipe = async (req, res) => {
 exports.deleteRecipe = async (req, res) => {
   try {
     const recipe = await recipeService.deleteRecipe(req.params.id);
-    if (!recipe) return res.status(404).json({ message: "Recipe not found" });
-    res.json({ message: "Recipe deleted successfully" });
+    if (!recipe) return res.status(404).json({ message: "Không tìm thấy công thức" });
+    res.json({ message: "Xóa công thức thành công" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -54,7 +54,7 @@ exports.updateRecipeRating = async (req, res) => {
     
     if (rate === undefined || numberOfRate === undefined) {
       return res.status(400).json({ 
-        error: 'rate and numberOfRate are required' 
+        error: 'Vui lòng cung cấp điểm đánh giá và số lượt đánh giá' 
       });
     }
 
@@ -65,7 +65,7 @@ exports.updateRecipeRating = async (req, res) => {
     );
     
     if (!recipe) {
-      return res.status(404).json({ message: "Recipe not found" });
+      return res.status(404).json({ message: "Không tìm thấy công thức" });
     }
     
     res.json(recipe);

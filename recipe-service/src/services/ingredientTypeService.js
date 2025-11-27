@@ -14,7 +14,7 @@ async function createType(data) {
     return await type.save();
   } catch (error) {
     if (error.code === 11000) {
-      throw new Error(`Ingredient Type "${data.name}" already exists`);
+      throw new Error(`Loại nguyên liệu "${data.name}" đã tồn tại`);
     }
     throw error;
   }
@@ -25,7 +25,7 @@ async function updateType(id, data) {
     return await IngredientType.findByIdAndUpdate(id, data, { new: true });
   } catch (error) {
     if (error.code === 11000) {
-      throw new Error(`Ingredient Type "${data.name}" already exists`);
+      throw new Error(`Loại nguyên liệu "${data.name}" đã tồn tại`);
     }
     throw error;
   }

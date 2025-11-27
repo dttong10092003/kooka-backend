@@ -12,7 +12,7 @@ exports.getTags = async (req, res) => {
 exports.getTag = async (req, res) => {
   try {
     const tag = await tagService.getTagById(req.params.id);
-    if (!tag) return res.status(404).json({ message: "Tag not found" });
+    if (!tag) return res.status(404).json({ message: "Không tìm thấy thẻ" });
     res.json(tag);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -31,7 +31,7 @@ exports.createTag = async (req, res) => {
 exports.updateTag = async (req, res) => {
   try {
     const tag = await tagService.updateTag(req.params.id, req.body);
-    if (!tag) return res.status(404).json({ message: "Tag not found" });
+    if (!tag) return res.status(404).json({ message: "Không tìm thấy thẻ" });
     res.json(tag);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -41,8 +41,8 @@ exports.updateTag = async (req, res) => {
 exports.deleteTag = async (req, res) => {
   try {
     const tag = await tagService.deleteTag(req.params.id);
-    if (!tag) return res.status(404).json({ message: "Tag not found" });
-    res.json({ message: "Tag deleted successfully" });
+    if (!tag) return res.status(404).json({ message: "Không tìm thấy thẻ" });
+    res.json({ message: "Xóa thẻ thành công" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

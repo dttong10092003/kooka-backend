@@ -14,7 +14,7 @@ async function createIngredient(data) {
     return await ingredient.save();
   } catch (error) {
     if (error.code === 11000) {
-      throw new Error(`Ingredient "${data.name}" already exists`);
+      throw new Error(`Nguyên liệu "${data.name}" đã tồn tại`);
     }
     throw error;
   }
@@ -25,7 +25,7 @@ async function updateIngredient(id, data) {
     return await Ingredient.findByIdAndUpdate(id, data, { new: true }).populate("typeId", "name");
   } catch (error) {
     if (error.code === 11000) {
-      throw new Error(`Ingredient "${data.name}" already exists`);
+      throw new Error(`Nguyên liệu "${data.name}" đã tồn tại`);
     }
     throw error;
   }

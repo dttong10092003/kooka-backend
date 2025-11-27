@@ -14,7 +14,7 @@ async function createCuisine(data) {
     return await cuisine.save();
   } catch (error) {
     if (error.code === 11000) {
-      throw new Error(`Cuisine "${data.name}" already exists`);
+      throw new Error(`Ẩm thực "${data.name}" đã tồn tại`);
     }
     throw error;
   }
@@ -25,7 +25,7 @@ async function updateCuisine(id, data) {
     return await Cuisine.findByIdAndUpdate(id, data, { new: true });
   } catch (error) {
     if (error.code === 11000) {
-      throw new Error(`Cuisine "${data.name}" already exists`);
+      throw new Error(`Ẩm thực "${data.name}" đã tồn tại`);
     }
     throw error;
   }

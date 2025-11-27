@@ -108,7 +108,7 @@ async function updateRecipe(id, data) {
   // Lấy recipe cũ để so sánh thay đổi
   const oldRecipe = await Recipe.findById(id);
   if (!oldRecipe) {
-    throw new Error('Recipe not found');
+    throw new Error('Không tìm thấy công thức');
   }
 
   // Upload chỉ ảnh chính (video không upload, chỉ lưu URL YouTube)
