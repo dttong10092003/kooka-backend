@@ -37,6 +37,19 @@ exports.registerUser = async (req, res) => {
     // User sẽ có isVerified = false và sẽ nhận email xác thực
     const user = await authService.createUser({ email, password, firstName, lastName });
     
+    // ⚠️ TEMP: Tạo profile ngay vì đã skip email verification
+    try {
+      await callUserService("/api/user/profile", {
+        userId: user._id,
+        firstName: firstName,
+        lastName: lastName,
+      });
+      console.log(`✅ Profile created for ${user.username}`);
+    } catch (profileError) {
+      console.error("❌ Lỗi khi tạo profile:", profileError.message);
+      // Không throw error để vẫn cho phép user đăng ký
+    }
+    
     // Loại bỏ password khỏi response
     const { password: _, ...userWithoutPassword } = user.toObject();
     res.status(201).json({ 
