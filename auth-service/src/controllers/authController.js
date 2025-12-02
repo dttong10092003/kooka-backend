@@ -37,25 +37,12 @@ exports.registerUser = async (req, res) => {
     // User sẽ có isVerified = false và sẽ nhận email xác thực
     const user = await authService.createUser({ email, password, firstName, lastName });
     
-    // ⚠️ TEMP: Tạo profile ngay vì đã skip email verification
-    try {
-      await callUserService("/api/user/profile", {
-        userId: user._id,
-        firstName: firstName,
-        lastName: lastName,
-      });
-      console.log(`✅ Profile created for ${user.username}`);
-    } catch (profileError) {
-      console.error("❌ Lỗi khi tạo profile:", profileError.message);
-      // Không throw error để vẫn cho phép user đăng ký
-    }
-    
     // Loại bỏ password khỏi response
     const { password: _, ...userWithoutPassword } = user.toObject();
     res.status(201).json({ 
-      message: "Đăng ký thành công!", // ⚠️ TEMP: Email verification disabled
+      message: "Đăng ký thành công! Vui lòng kiểm tra email để xác thực tài khoản.",
       user: userWithoutPassword,
-      needVerification: false // ⚠️ TEMP: Set false
+      needVerification: true
     });
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -72,15 +59,14 @@ exports.loginUser = async (req, res) => {
     const valid = await authService.comparePassword(password, user.password);
     if (!valid) return res.status(401).json({ message: "Invalid credentials" });
 
-    // ⚠️ TEMPORARILY DISABLED FOR BULK USER CREATION
     // Kiểm tra xác thực email (chỉ với tài khoản mới có field isVerified)
     // Tài khoản cũ không có field này sẽ được phép login (backward compatibility)
-    // if (user.isVerified === false) {
-    //   return res.status(403).json({ 
-    //     message: "Email chưa được xác thực. Vui lòng kiểm tra email của bạn.",
-    //     isVerified: false 
-    //   });
-    // }
+    if (user.isVerified === false) {
+      return res.status(403).json({ 
+        message: "Email chưa được xác thực. Vui lòng kiểm tra email của bạn.",
+        isVerified: false 
+      });
+    }
 
     const token = authService.generateToken(user);
     // Loại bỏ password khỏi response
