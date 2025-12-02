@@ -23,30 +23,31 @@ async function createUser({ email, password, firstName, lastName }) {
   const hashedPassword = await bcrypt.hash(password, 10);
   const username = await generateUniqueUsername(email);
 
+  // ⚠️ TEMPORARILY DISABLED FOR BULK USER CREATION
   // Tạo verification token
-  const verificationToken = crypto.randomBytes(32).toString("hex");
-  const hashedToken = crypto.createHash("sha256").update(verificationToken).digest("hex");
+  // const verificationToken = crypto.randomBytes(32).toString("hex");
+  // const hashedToken = crypto.createHash("sha256").update(verificationToken).digest("hex");
 
   const newUser = new User({
     username,
     email,
     password: hashedPassword,
-    isVerified: false, // Chưa xác thực
-    verificationToken: hashedToken,
-    verificationTokenExpires: Date.now() + 24 * 3600000, // 24 giờ
+    isVerified: true, // ⚠️ TEMP: Set true to skip email verification
+    // verificationToken: hashedToken,
+    // verificationTokenExpires: Date.now() + 24 * 3600000, // 24 giờ
     tempFirstName: firstName, // Lưu tạm firstName
     tempLastName: lastName, // Lưu tạm lastName
   });
 
   const savedUser = await newUser.save();
 
-  // Gửi email xác thực
-  try {
-    await emailService.sendVerificationEmail(email, verificationToken);
-  } catch (error) {
-    console.error("❌ Lỗi khi gửi email xác thực:", error.message);
-    // Không throw error để vẫn cho phép user đăng ký
-  }
+  // ⚠️ TEMPORARILY DISABLED: Gửi email xác thực
+  // try {
+  //   await emailService.sendVerificationEmail(email, verificationToken);
+  // } catch (error) {
+  //   console.error("❌ Lỗi khi gửi email xác thực:", error.message);
+  //   // Không throw error để vẫn cho phép user đăng ký
+  // }
 
   return savedUser;
 }

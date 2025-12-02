@@ -40,9 +40,9 @@ exports.registerUser = async (req, res) => {
     // Loại bỏ password khỏi response
     const { password: _, ...userWithoutPassword } = user.toObject();
     res.status(201).json({ 
-      message: "Đăng ký thành công! Vui lòng kiểm tra email để xác thực tài khoản.",
+      message: "Đăng ký thành công!", // ⚠️ TEMP: Email verification disabled
       user: userWithoutPassword,
-      needVerification: true
+      needVerification: false // ⚠️ TEMP: Set false
     });
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -59,14 +59,15 @@ exports.loginUser = async (req, res) => {
     const valid = await authService.comparePassword(password, user.password);
     if (!valid) return res.status(401).json({ message: "Invalid credentials" });
 
+    // ⚠️ TEMPORARILY DISABLED FOR BULK USER CREATION
     // Kiểm tra xác thực email (chỉ với tài khoản mới có field isVerified)
     // Tài khoản cũ không có field này sẽ được phép login (backward compatibility)
-    if (user.isVerified === false) {
-      return res.status(403).json({ 
-        message: "Email chưa được xác thực. Vui lòng kiểm tra email của bạn.",
-        isVerified: false 
-      });
-    }
+    // if (user.isVerified === false) {
+    //   return res.status(403).json({ 
+    //     message: "Email chưa được xác thực. Vui lòng kiểm tra email của bạn.",
+    //     isVerified: false 
+    //   });
+    // }
 
     const token = authService.generateToken(user);
     // Loại bỏ password khỏi response
