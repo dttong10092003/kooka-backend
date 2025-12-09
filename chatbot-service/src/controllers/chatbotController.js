@@ -97,6 +97,40 @@ class ChatbotController {
     }
   }
 
+  // Get all conversations of a user
+  async getAllConversations(req, res) {
+    try {
+      const { userId } = req.query;
+
+      if (!userId) {
+        return res.status(400).json({
+          success: false,
+          error: 'userId is required'
+        });
+      }
+
+      const Conversation = require('../models/Conversation');
+
+      // Lấy tất cả conversations của user, sắp xếp theo updatedAt giảm dần
+      const conversations = await Conversation.find({ userId })
+        .sort({ updatedAt: -1 }) // Mới nhất lên trước
+        .limit(50) // Giới hạn 50 conversations gần nhất
+        .lean(); // Tối ưu performance
+
+      return res.status(200).json({
+        success: true,
+        conversations: conversations || []
+      });
+    } catch (error) {
+      console.error('Error in getAllConversations:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+        message: error.message
+      });
+    }
+  }
+
   // Health check
   async healthCheck(req, res) {
     return res.status(200).json({

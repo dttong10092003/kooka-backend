@@ -9,6 +9,9 @@ router.get('/health', chatbotController.healthCheck);
 // Send message to chatbot
 router.post('/chat', chatbotController.sendMessage);
 
+// Get all conversations of a user
+router.get('/conversations', chatbotController.getAllConversations);
+
 // Get conversation history
 router.get('/history/:sessionId', chatbotController.getHistory);
 
