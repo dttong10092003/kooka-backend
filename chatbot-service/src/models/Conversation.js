@@ -39,6 +39,8 @@ const conversationSchema = new mongoose.Schema({
   }
 });
 
+// Index for getAllConversations performance
+conversationSchema.index({ userId: 1, updatedAt: -1 });
 conversationSchema.index({ createdAt: 1 }, { expireAfterSeconds: 2592000 }); // 30 days
 
 module.exports = mongoose.model('Conversation', conversationSchema);
