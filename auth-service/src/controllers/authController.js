@@ -100,14 +100,35 @@ exports.googleLogin = async (req, res) => {
     // Loại bỏ password khỏi response
     const { password: _, ...userWithoutPassword } = req.user.toObject();
     
-    // Redirect trực tiếp về frontend với token
+    // Lấy mobile redirect URI từ session (nếu có)
+    const mobileRedirectUri = req.session?.mobileRedirectUri;
+    
     const userJson = encodeURIComponent(JSON.stringify(userWithoutPassword));
-    const redirectUrl = `https://kooka-web.vercel.app/auth/google/callback?token=${token}&user=${userJson}`;
+    
+    let redirectUrl;
+    if (mobileRedirectUri) {
+      // Mobile app - redirect về deep link
+      redirectUrl = `${mobileRedirectUri}?token=${token}&user=${userJson}`;
+      // Xóa redirect URI khỏi session sau khi dùng
+      delete req.session.mobileRedirectUri;
+    } else {
+      // Web app - redirect về trang web
+      redirectUrl = `https://kooka-web.vercel.app/auth/google/callback?token=${token}&user=${userJson}`;
+    }
     
     res.redirect(redirectUrl);
   } catch (err) {
-    // Redirect về frontend với error
-    const errorUrl = `https://kooka-web.vercel.app/login?error=${encodeURIComponent(err.message)}`;
+    // Lấy mobile redirect URI từ session để redirect error đúng platform
+    const mobileRedirectUri = req.session?.mobileRedirectUri;
+    
+    let errorUrl;
+    if (mobileRedirectUri) {
+      errorUrl = `${mobileRedirectUri}?error=${encodeURIComponent(err.message)}`;
+      delete req.session.mobileRedirectUri;
+    } else {
+      errorUrl = `https://kooka-web.vercel.app/login?error=${encodeURIComponent(err.message)}`;
+    }
+    
     res.redirect(errorUrl);
   }
 };

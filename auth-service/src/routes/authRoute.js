@@ -32,7 +32,13 @@ router.post("/reset-password", authController.resetPassword);
 router.post("/reset-password/:token", authController.resetPassword);
 
 // Google Login for Web (OAuth flow)
-router.get("/google", passport.authenticate("google", { scope: ["profile", "email"] }));
+router.get("/google", (req, res, next) => {
+  // Lưu redirect_uri từ mobile app vào session
+  if (req.query.redirect_uri) {
+    req.session.mobileRedirectUri = req.query.redirect_uri;
+  }
+  next();
+}, passport.authenticate("google", { scope: ["profile", "email"] }));
 router.get("/google/callback",
   passport.authenticate("google", { session: false, failureRedirect: "/auth/failure" }),
   authController.googleLogin
