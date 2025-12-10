@@ -88,6 +88,7 @@ async function createAdminUser({ email, password }) {
     email,
     password: hashedPassword,
     isAdmin: true,
+    isVerified: true, // Admin phụ được verify tự động
   });
   return await newAdmin.save();
 }
