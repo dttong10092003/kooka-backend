@@ -4,6 +4,7 @@ const dotenv = require("dotenv");
 const authRoutes = require("./routes/authRoute");
 dotenv.config();
 const passport = require("./config/passport"); // import config passport
+const session = require("express-session");
 const cors = require("cors");
 
 
@@ -39,8 +40,20 @@ app.use(cors({
 
 app.use(express.json());
 
+// ====== SESSION CONFIG (for mobile redirect) ======
+app.use(session({
+  secret: process.env.SESSION_SECRET || "kooka-session-secret-key",
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === "production", // true nếu dùng HTTPS
+    maxAge: 10 * 60 * 1000 // 10 phút
+  }
+}));
+
 // Khởi tạo passport
 app.use(passport.initialize());
+app.use(passport.session());
 
 // connect mongo
 mongoose.connect(process.env.MONGO_URI)
