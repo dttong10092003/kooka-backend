@@ -31,7 +31,14 @@ Trả về JSON với format sau (CHỈ JSON, KHÔNG có text khác):
     "size": "số người ăn nếu có",
     "recipeId": "ID công thức nếu có",
     "mealPlanType": "loại meal plan - QUAN TRỌNG: phát hiện từ context",
-    "duration": "số ngày meal plan (mặc định 7)"
+    "duration": "số ngày meal plan (mặc định 7)",
+    "mealPlanCalories": "calo mục tiêu cho meal plan (VD: 1500, 2000)",
+    "requiredDishes": ["món BẮT BUỘC phải có (VD: cơm, phở bò, canh)"],
+    "excludedDishes": ["món KHÔNG được có (VD: món cay, món nước)"],
+    "allergies": ["dị ứng với nguyên liệu (VD: tôm, sữa, đậu phộng)"],
+    "avoidIngredients": ["không ăn được (VD: thịt gà, thịt bò)"],
+    "nutritionFocus": "trọng tâm dinh dưỡng (VD: protein cao, ít carb, nhiều chất xơ)",
+    "dishTypeConstraints": "ràng buộc loại món (VD: phải có cơm mỗi bữa, hạn chế món nước)"
   },
   "needsData": true/false
 }
@@ -505,14 +512,33 @@ Lưu ý:
 
   // 🆕 Generate INTELLIGENT AI meal plan (breakfast/lunch/dinner specific)
   async generateMealPlan(entities) {
-    const { mealPlanType, duration = 7 } = entities;
+    const { 
+      mealPlanType, 
+      duration = 7,
+      mealPlanCalories,
+      requiredDishes = [],
+      excludedDishes = [],
+      allergies = [],
+      avoidIngredients = [],
+      nutritionFocus,
+      dishTypeConstraints
+    } = entities;
 
     console.log(
       `📋 Creating INTELLIGENT meal plan: ${mealPlanType} for ${duration} days`
     );
+    console.log(`🎯 Special requirements:`, {
+      calories: mealPlanCalories,
+      requiredDishes,
+      excludedDishes,
+      allergies,
+      avoidIngredients,
+      nutritionFocus,
+      dishTypeConstraints
+    });
 
     // Step 1: Get meal-time specific criteria
-    const mealCriteria = this.getMealPlanCriteria(mealPlanType);
+    const mealCriteria = this.getMealPlanCriteria(mealPlanType, entities);
     console.log(
       "🔍 Meal-time specific criteria:",
       JSON.stringify(mealCriteria, null, 2)
@@ -522,17 +548,20 @@ Lưu ý:
     const breakfastRecipes = await this.fetchRecipesForMeal(
       "breakfast",
       mealCriteria.breakfast,
-      mealPlanType
+      mealPlanType,
+      entities
     );
     const lunchRecipes = await this.fetchRecipesForMeal(
       "lunch",
       mealCriteria.lunch,
-      mealPlanType
+      mealPlanType,
+      entities
     );
     const dinnerRecipes = await this.fetchRecipesForMeal(
       "dinner",
       mealCriteria.dinner,
-      mealPlanType
+      mealPlanType,
+      entities
     );
 
     console.log(
@@ -548,7 +577,8 @@ Lưu ý:
       breakfastRecipes,
       `${mealPlanType} - Bữa sáng`,
       duration,
-      allUsedRecipeIds // Không có món nào dùng trước đó
+      allUsedRecipeIds,
+      entities
     );
     allUsedRecipeIds.push(...selectedBreakfast.map(r => r._id.toString()));
 
@@ -557,7 +587,8 @@ Lưu ý:
       lunchRecipes,
       `${mealPlanType} - Bữa trưa`,
       duration,
-      allUsedRecipeIds // Tránh món breakfast
+      allUsedRecipeIds,
+      entities
     );
     allUsedRecipeIds.push(...selectedLunch.map(r => r._id.toString()));
 
@@ -566,7 +597,8 @@ Lưu ý:
       dinnerRecipes,
       `${mealPlanType} - Bữa tối`,
       duration,
-      allUsedRecipeIds // Tránh món breakfast + lunch
+      allUsedRecipeIds,
+      entities
     );
 
     console.log(
@@ -597,8 +629,16 @@ Lưu ý:
   }
 
   // 🆕 Fetch recipes for specific meal time with intelligent filtering
-  async fetchRecipesForMeal(mealTime, criteria, mealPlanType) {
+  async fetchRecipesForMeal(mealTime, criteria, mealPlanType, entities = {}) {
     console.log(`🍽️ Fetching recipes for ${mealTime} with criteria:`, criteria);
+
+    const {
+      requiredDishes = [],
+      excludedDishes = [],
+      allergies = [],
+      avoidIngredients = [],
+      dishTypeConstraints
+    } = entities;
 
     // Build basic filters (calories, time, difficulty)
     const filters = {};
@@ -630,9 +670,69 @@ Lưu ý:
     const isVegetarianStrict = mealPlanType.toLowerCase().includes('ăn chay') || 
                                 mealPlanType.toLowerCase() === 'chay';
 
-    // Advanced filtering: category, tags, ingredients
+    // Merge all avoid ingredients (from criteria + entities)
+    const allAvoidIngredients = [
+      ...(criteria.avoidIngredients || []),
+      ...allergies,
+      ...avoidIngredients
+    ];
+
+    // Advanced filtering: category, tags, ingredients, constraints
     let filteredRecipes = recipesResult.recipes.filter((recipe) => {
-      // 🚫 BẮT BUỘC: Nếu là meal plan "ăn chay" → CHỈ LẤY MÓN CHAY
+      const recipeName = (recipe.name || "").toLowerCase();
+      
+      // 🚫 1. BẮT BUỘC: Kiểm tra món bị loại trừ (excluded dishes)
+      if (excludedDishes.length > 0) {
+        const isExcluded = excludedDishes.some(excluded => 
+          recipeName.includes(excluded.toLowerCase()) ||
+          excluded.toLowerCase().includes(recipeName)
+        );
+        if (isExcluded) {
+          console.log(`❌ Excluded dish: ${recipe.name}`);
+          return false;
+        }
+      }
+
+      // 🚫 2. Kiểm tra dish type constraints (VD: "không có cơm", "hạn chế món nước", "hạn chế món cay")
+      if (dishTypeConstraints) {
+        const constraints = dishTypeConstraints.toLowerCase();
+        
+        // Không có cơm
+        if (constraints.includes('không có cơm') || constraints.includes('không cơm')) {
+          if (recipeName.includes('cơm')) {
+            console.log(`❌ Excluded (no rice): ${recipe.name}`);
+            return false;
+          }
+        }
+        
+        // Hạn chế món nước
+        if (constraints.includes('hạn chế món nước') || constraints.includes('ít món nước')) {
+          const recipeTags = recipe.tags?.map(
+            (tag) => tag.nameLowercase || tag.name?.toLowerCase() || ""
+          ) || [];
+          if (recipeTags.some(tag => tag.includes('món nước'))) {
+            // Chỉ cho 1/3 món nước qua (ngẫu nhiên)
+            if (Math.random() > 0.33) {
+              console.log(`❌ Limited soup dish: ${recipe.name}`);
+              return false;
+            }
+          }
+        }
+        
+        // Hạn chế món cay
+        if (constraints.includes('hạn chế món cay') || constraints.includes('ít món cay') || 
+            constraints.includes('không cay')) {
+          const recipeTags = recipe.tags?.map(
+            (tag) => tag.nameLowercase || tag.name?.toLowerCase() || ""
+          ) || [];
+          if (recipeTags.some(tag => tag.includes('cay')) || recipeName.includes('cay')) {
+            console.log(`❌ Excluded spicy dish: ${recipe.name}`);
+            return false;
+          }
+        }
+      }
+
+      // 🚫 3. BẮT BUỘC: Nếu là meal plan "ăn chay" → CHỈ LẤY MÓN CHAY
       if (isVegetarianStrict) {
         const recipeTags = recipe.tags?.map(
           (tag) => tag.nameLowercase || tag.name?.toLowerCase() || ""
@@ -665,7 +765,7 @@ Lưu ý:
 
       let score = 0;
 
-      // 1. Check CATEGORY (priority: exact match)
+      // 4. Check CATEGORY (priority: exact match)
       if (criteria.categories && criteria.categories.length > 0) {
         const recipeCategoryLower =
           recipe.category?.nameLowercase ||
@@ -679,7 +779,7 @@ Lưu ý:
         if (matchesCategory) score += 100;
       }
 
-      // 2. Check TAGS (bonus points)
+      // 5. Check TAGS (bonus points)
       if (criteria.tags && criteria.tags.length > 0 && recipe.tags) {
         const recipeTags = recipe.tags.map(
           (tag) => tag.nameLowercase || tag.name?.toLowerCase() || ""
@@ -695,7 +795,7 @@ Lưu ý:
         });
       }
 
-      // 3. Check PREFERRED INGREDIENTS (bonus points)
+      // 6. Check PREFERRED INGREDIENTS (bonus points)
       if (
         criteria.preferredIngredients &&
         criteria.preferredIngredients.length > 0 &&
@@ -715,22 +815,19 @@ Lưu ý:
         });
       }
 
-      // 4. Check AVOID INGREDIENTS (penalty/filter out)
-      if (
-        criteria.avoidIngredients &&
-        criteria.avoidIngredients.length > 0 &&
-        recipe.ingredients
-      ) {
+      // 7. Check AVOID INGREDIENTS (penalty/filter out - includes allergies)
+      if (allAvoidIngredients.length > 0 && recipe.ingredients) {
         const recipeIngredients = recipe.ingredients.map(
           (ing) => ing.nameLowercase || ing.name?.toLowerCase() || ""
         );
-        const hasAvoidedIngredient = criteria.avoidIngredients.some(
+        const hasAvoidedIngredient = allAvoidIngredients.some(
           (avoidIng) =>
             recipeIngredients.some((recipeIng) =>
               recipeIng.includes(avoidIng.toLowerCase())
             )
         );
         if (hasAvoidedIngredient) {
+          console.log(`❌ Excluded (allergy/avoid): ${recipe.name} - contains ${allAvoidIngredients.join(', ')}`);
           return false; // Filter out recipes with avoided ingredients
         }
       }
@@ -740,6 +837,26 @@ Lưu ý:
       return score > 0 || (!criteria.categories && !criteria.tags);
     });
 
+    // 🎯 8. Handle required dishes - Tìm món bắt buộc phải có
+    let requiredRecipes = [];
+    if (requiredDishes.length > 0) {
+      console.log(`🔍 Searching for required dishes:`, requiredDishes);
+      
+      requiredRecipes = filteredRecipes.filter(recipe => {
+        const recipeName = (recipe.name || "").toLowerCase();
+        return requiredDishes.some(required => 
+          recipeName.includes(required.toLowerCase()) ||
+          required.toLowerCase().includes(recipeName)
+        );
+      });
+      
+      console.log(`✅ Found ${requiredRecipes.length} required dishes:`, requiredRecipes.map(r => r.name));
+      
+      // Remove required recipes from filtered list to avoid duplication
+      const requiredIds = new Set(requiredRecipes.map(r => r._id.toString()));
+      filteredRecipes = filteredRecipes.filter(r => !requiredIds.has(r._id.toString()));
+    }
+
     // Sort by rating (prefer high-rated recipes)
     filteredRecipes.sort((a, b) => {
       const rateA = a.rate || 0;
@@ -747,16 +864,31 @@ Lưu ý:
       return rateB - rateA;
     });
 
+    // Merge required recipes at the beginning (they get priority)
+    const finalRecipes = [...requiredRecipes, ...filteredRecipes];
+
     console.log(
-      `✅ Filtered to ${filteredRecipes.length} recipes for ${mealTime} ${isVegetarianStrict ? '(CHAY ONLY)' : ''}`
+      `✅ Filtered to ${finalRecipes.length} recipes for ${mealTime} ${isVegetarianStrict ? '(CHAY ONLY)' : ''} (${requiredRecipes.length} required + ${filteredRecipes.length} others)`
     );
-    return filteredRecipes;
+    return finalRecipes;
   }
 
   // Get INTELLIGENT meal-specific criteria based on meal plan type and meal time
   // ✅ ENHANCED VERSION: Thêm nhiều tags + criteria để AI chọn món chính xác hơn
-  getMealPlanCriteria(mealPlanType) {
+  // ✅ UPDATED: Nhận entities để điều chỉnh theo yêu cầu cụ thể
+  getMealPlanCriteria(mealPlanType, entities = {}) {
     const normalized = mealPlanType.toLowerCase();
+
+    // Extract special requirements from entities
+    const {
+      mealPlanCalories,
+      requiredDishes = [],
+      excludedDishes = [],
+      allergies = [],
+      avoidIngredients = [],
+      nutritionFocus,
+      dishTypeConstraints
+    } = entities;
 
     // 🎯 Define meal-time specific criteria for each user goal
     //
@@ -1463,33 +1595,94 @@ Lưu ý:
       },
     };
 
-    return (
-      criteriaMap[normalized] || {
-        breakfast: {
-          difficulty: "Dễ",
-          maxTime: 30,
-          categories: ["Bữa sáng"],
-          tags: [],
-        },
-        lunch: {
-          difficulty: "Dễ",
-          maxTime: 45,
-          categories: ["Bữa chính", "Bữa trưa"],
-          tags: [],
-        },
-        dinner: {
-          difficulty: "Dễ",
-          maxTime: 30,
-          categories: ["Bữa tối"],
-          tags: [],
-        },
+    // Get base criteria for the meal plan type
+    let baseCriteria = criteriaMap[normalized] || {
+      breakfast: {
+        difficulty: "Dễ",
+        maxTime: 30,
+        categories: ["Bữa sáng"],
+        tags: [],
+      },
+      lunch: {
+        difficulty: "Dễ",
+        maxTime: 45,
+        categories: ["Bữa chính", "Bữa trưa"],
+        tags: [],
+      },
+      dinner: {
+        difficulty: "Dễ",
+        maxTime: 30,
+        categories: ["Bữa tối"],
+        tags: [],
+      },
+    };
+
+    // 🎯 Apply user's specific requirements to each meal
+    const applyCustomRequirements = (mealCriteria) => {
+      const customCriteria = { ...mealCriteria };
+
+      // 1. Adjust calories if specified
+      if (mealPlanCalories) {
+        const dailyCalories = parseInt(mealPlanCalories);
+        // Phân bổ: Sáng 25%, Trưa 40%, Tối 35%
+        if (mealCriteria === baseCriteria.breakfast) {
+          customCriteria.maxCalories = Math.floor(dailyCalories * 0.25);
+        } else if (mealCriteria === baseCriteria.lunch) {
+          customCriteria.maxCalories = Math.floor(dailyCalories * 0.40);
+        } else if (mealCriteria === baseCriteria.dinner) {
+          customCriteria.maxCalories = Math.floor(dailyCalories * 0.35);
+        }
       }
-    );
+
+      // 2. Add nutrition focus tags
+      if (nutritionFocus) {
+        customCriteria.tags = customCriteria.tags || [];
+        if (!customCriteria.tags.includes(nutritionFocus)) {
+          customCriteria.tags.push(nutritionFocus);
+        }
+      }
+
+      // 3. Merge avoid ingredients
+      customCriteria.avoidIngredients = [
+        ...(customCriteria.avoidIngredients || []),
+        ...allergies,
+        ...avoidIngredients
+      ];
+
+      // 4. Add required dishes constraints
+      customCriteria.requiredDishes = requiredDishes;
+
+      // 5. Add excluded dishes constraints
+      customCriteria.excludedDishes = excludedDishes;
+
+      // 6. Add dish type constraints
+      if (dishTypeConstraints) {
+        customCriteria.dishTypeConstraints = dishTypeConstraints;
+      }
+
+      return customCriteria;
+    };
+
+    return {
+      breakfast: applyCustomRequirements(baseCriteria.breakfast),
+      lunch: applyCustomRequirements(baseCriteria.lunch),
+      dinner: applyCustomRequirements(baseCriteria.dinner)
+    };
   }
 
   // Use AI to intelligently select recipes (meal-time specific)
-  async selectRecipesWithAI(allRecipes, mealContext, duration, usedRecipeIds = []) {
+  async selectRecipesWithAI(allRecipes, mealContext, duration, usedRecipeIds = [], entities = {}) {
     const needed = duration; // For specific meal time (e.g., 7 breakfast recipes for 7 days)
+
+    const {
+      requiredDishes = [],
+      excludedDishes = [],
+      allergies = [],
+      avoidIngredients = [],
+      nutritionFocus,
+      dishTypeConstraints,
+      mealPlanCalories
+    } = entities;
 
     // 🚫 LOẠI BỎ món đã sử dụng trong cùng ngày
     const availableRecipes = allRecipes.filter(r => !usedRecipeIds.includes(r._id));
@@ -1507,12 +1700,47 @@ Lưu ý:
         `🤖 Using AI to select best ${needed} recipes for: ${mealContext} (${usedRecipeIds.length} recipes already used)`
       );
 
+      // Build special requirements text for AI prompt
+      let specialRequirementsText = '';
+      
+      if (requiredDishes.length > 0) {
+        specialRequirementsText += `\n🎯 MÓN BẮT BUỘC PHẢI CÓ: ${requiredDishes.join(', ')}`;
+      }
+      
+      if (excludedDishes.length > 0) {
+        specialRequirementsText += `\n🚫 MÓN TUYỆT ĐỐI KHÔNG ĐƯỢC CHỌN: ${excludedDishes.join(', ')}`;
+      }
+      
+      if (allergies.length > 0) {
+        specialRequirementsText += `\n⚠️ DỊ ỨNG (tránh nguyên liệu): ${allergies.join(', ')}`;
+      }
+      
+      if (avoidIngredients.length > 0) {
+        specialRequirementsText += `\n❌ KHÔNG ĂN ĐƯỢC (tránh nguyên liệu): ${avoidIngredients.join(', ')}`;
+      }
+      
+      if (nutritionFocus) {
+        specialRequirementsText += `\n💪 TRỌNG TÂM DINH DƯỠNG: ${nutritionFocus}`;
+      }
+      
+      if (dishTypeConstraints) {
+        specialRequirementsText += `\n🍽️ RÀNG BUỘC LOẠI MÓN: ${dishTypeConstraints}`;
+      }
+      
+      if (mealPlanCalories) {
+        specialRequirementsText += `\n🔥 MỤC TIÊU CALO MỖI NGÀY: ${mealPlanCalories} kcal`;
+      }
+
       const selectionPrompt = `
 🤖 BẠN LÀ CHUYÊN GIA DINH DƯỠNG VÀ ẨM THỰC
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🎯 NHIỆM VỤ: Chọn ${needed} món ăn TỐT NHẤT cho "${mealContext}"
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${specialRequirementsText ? `
+🌟 YÊU CẦU ĐẶC BIỆT (QUAN TRỌNG - ƯU TIÊN CAO NHẤT):${specialRequirementsText}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+` : ''}
 
 📋 DANH SÁCH ${recipesToUse.length} MÓN ĂN SẴN CÓ (Top ${Math.min(
         50,
@@ -1523,40 +1751,46 @@ ${recipesToUse
   .map((r, idx) => {
     const tags = r.tags ? r.tags.map((t) => t.name || t).join(", ") : "";
     const category = r.category ? r.category.name || r.category : "";
+    const ingredients = r.ingredients ? r.ingredients.slice(0, 5).map(i => i.name || i).join(", ") : "";
     return `${idx + 1}. ${r._id} | ${r.name} | ⭐${r.rate || 0}/5 | ⏱${
       r.time
     }m | 🔥${r.calories || "N/A"}cal | ${
       r.difficulty
-    } | 📁${category} | 🏷️${tags}`;
+    } | 📁${category} | 🏷️${tags} | 🥘${ingredients}${ingredients.length > 0 ? '...' : ''}`;
   })
   .join("\n")}
 
 ${usedRecipeIds.length > 0 ? `
-⚠️ CÁC MÓN ĐÃ DÙNG TRONG CÙNG NGÀY (TRÁNH CHỌN):
+⚠️ CÁC MÓN ĐÃ DÙNG TRONG CÁC BỮA ĂN KHÁC (TRÁNH CHỌN TRỪ KHI CẦN THIẾT):
 ${usedRecipeIds.join(", ")}
 ` : ''}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ TIÊU CHÍ CHỌN MÓN (QUAN TRỌNG):
+✅ TIÊU CHÍ CHỌN MÓN (THEO THỨ TỰ ƯU TIÊN):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🔴 QUAN TRỌNG NHẤT: 
+🔴 ƯU TIÊN CAO NHẤT: 
+   ${requiredDishes.length > 0 ? `• BẮT BUỘC chọn các món: ${requiredDishes.join(', ')}` : ''}
+   ${excludedDishes.length > 0 ? `• TUYỆT ĐỐI KHÔNG chọn các món: ${excludedDishes.join(', ')}` : ''}
+   ${allergies.length > 0 ? `• TRÁNH nguyên liệu dị ứng: ${allergies.join(', ')}` : ''}
+   ${avoidIngredients.length > 0 ? `• TRÁNH nguyên liệu không ăn được: ${avoidIngredients.join(', ')}` : ''}
    • MỖI MÓN CHỈ CHỌN 1 LẦN trong ${needed} món
    • TUYỆT ĐỐI KHÔNG lặp lại món giống nhau
-   • Nếu cần thiết dùng lại món, phải CÁCH NGÀY (ví dụ: Ngày 1 buổi sáng, Ngày 5 buổi tối)
 
 1. ⭐ RATING CAO: Ưu tiên món có rating ≥ 4.0 sao
 
 2. 🎨 ĐA DẠNG TỐI ĐA: 
    • ${needed} món phải là ${needed} món KHÁC NHAU HOÀN TOÀN
    • Tránh món tương tự (ví dụ: không chọn cả "Gà xào" và "Gà chiên")
+   • Đa dạng nguyên liệu chính (gà, bò, heo, cá, tôm, rau...)
 
 3. 🍽️ PHÙ HỢP BỮA ĂN: Phải match với "${mealContext}"
    • Bữa sáng: Nhẹ, nhanh, protein + carb (trứng, bánh mì, cháo, phở...)
-   • Bữa trưa: Đầy đủ, chính món (cơm, thịt, cá, rau...)
+   • Bữa trưa: Đầy đủ, chính món (cơm, thịt, cá, rau...), có thể no hơn
    • Bữa tối: Nhẹ, dễ tiêu, không quá no (canh, xào rau, hấp...)
 
 4. ⚖️ CÂN BẰNG DINH DƯỠNG qua ${needed} món:
+   ${nutritionFocus ? `• TRỌNG TÂM: ${nutritionFocus}` : ''}
    • Protein (Thịt/Cá/Trứng): 40%
    • Rau củ: 30%
    • Carb (Cơm/Bún/Mì): 25%
@@ -1572,9 +1806,15 @@ ${usedRecipeIds.join(", ")}
    • Bữa trưa: 30-60 phút
    • Bữa tối: < 45 phút
 
-7. 🔥 ĐỘ KHÓ: Ưu tiên "Dễ" (60%), "Trung bình" (30%), "Khó" (10%)
+7. 🔥 CALO PHÙ HỢP:
+   ${mealPlanCalories ? `• Tổng calo các món nên phù hợp với mục tiêu ${mealPlanCalories} kcal/ngày` : ''}
+   • Bữa sáng: 300-500 kcal
+   • Bữa trưa: 500-800 kcal  
+   • Bữa tối: 300-600 kcal
 
-8. 🏷️ TAGS PHÙ HỢP: Chọn món có tags match với meal context
+8. 🔥 ĐỘ KHÓ: Ưu tiên "Dễ" (60%), "Trung bình" (30%), "Khó" (10%)
+
+9. 🏷️ TAGS PHÙ HỢP: Chọn món có tags match với meal context
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📤 ĐỊNH DẠNG TRẢ VỀ:
@@ -1588,6 +1828,7 @@ Trả về ĐÚNG ${needed} ID món ăn dưới dạng JSON array (CHỈ JSON, K
 - Phải chọn ĐÚNG ${needed} món
 - Mỗi ID chỉ xuất hiện 1 LẦN (KHÔNG trùng)
 - ${needed} món phải HOÀN TOÀN KHÁC NHAU
+- ${requiredDishes.length > 0 ? `BẮT BUỘC bao gồm các món: ${requiredDishes.join(', ')}` : ''}
 - KHÔNG thêm giải thích
 - CHỈ JSON array thuần túy
 `;
