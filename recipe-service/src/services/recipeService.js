@@ -1,4 +1,5 @@
 const Recipe = require("../models/Recipe");
+const RecipeIngredientUnit = require("../models/RecipeIngredientUnit");
 const { uploadToCloudinary } = require("../utils/cloudinary");
 const { parseBase64 } = require("../utils/parseBase64");
 const { uploadIfNeeded } = require("../utils/imageUploader");
@@ -31,11 +32,30 @@ async function getAllRecipes() {
 
 async function getRecipeById(id) {
   // ✅ Chỉ có hàm này mới cần FULL thông tin (bao gồm instructions)
-  return await Recipe.findById(id)
+  const recipe = await Recipe.findById(id)
     .populate("ingredients", "name")
     .populate("tags", "name")
     .populate("cuisine", "name")
     .populate("category", "name");
+  
+  if (!recipe) return null;
+  
+  // Lấy thông tin số lượng và đơn vị từ database riêng
+  const ingredientUnits = await RecipeIngredientUnit.find({ recipeId: id });
+  
+  // Gắn thông tin vào recipe
+  const recipeObj = recipe.toObject();
+  recipeObj.ingredientsWithDetails = recipeObj.ingredients.map(ing => {
+    const unitInfo = ingredientUnits.find(u => u.ingredientId.toString() === ing._id.toString());
+    return {
+      id: ing._id,
+      name: ing.name,
+      quantity: unitInfo?.quantity || 1,
+      unit: unitInfo?.unit || 'gram'
+    };
+  });
+  
+  return recipeObj;
 }
 
 // Giữ lại để backward compatibility, nhưng sẽ dùng uploadIfNeeded
@@ -82,6 +102,27 @@ async function createRecipe(data) {
   try {
     const recipe = new Recipe(data);
     const saved = await recipe.save();
+
+    // Lưu thông tin số lượng và đơn vị vào database riêng
+    if (data.ingredientsWithDetails && Array.isArray(data.ingredientsWithDetails)) {
+      const unitPromises = data.ingredientsWithDetails.map(detail => {
+        return RecipeIngredientUnit.findOneAndUpdate(
+          { 
+            recipeId: saved._id, 
+            ingredientId: detail.ingredientId || detail.id 
+          },
+          {
+            recipeId: saved._id,
+            ingredientId: detail.ingredientId || detail.id,
+            quantity: detail.quantity,
+            unit: detail.unit
+          },
+          { upsert: true, new: true }
+        );
+      });
+      await Promise.all(unitPromises);
+      console.log(`[Create Recipe] ✅ Saved ingredient units for recipe`);
+    }
 
     const totalTime = Date.now() - startTime;
     console.log(`[Create Recipe] ✅ Recipe created successfully in ${totalTime}ms`);
@@ -149,6 +190,24 @@ async function updateRecipe(id, data) {
       .populate("tags", "name")
       .populate("cuisine", "name")
       .populate("category", "name");
+
+    // Cập nhật thông tin số lượng và đơn vị vào database riêng
+    if (data.ingredientsWithDetails && Array.isArray(data.ingredientsWithDetails)) {
+      // Xóa tất cả unit cũ của recipe này
+      await RecipeIngredientUnit.deleteMany({ recipeId: id });
+      
+      // Thêm unit mới
+      const unitPromises = data.ingredientsWithDetails.map(detail => {
+        return RecipeIngredientUnit.create({
+          recipeId: id,
+          ingredientId: detail.ingredientId || detail.id,
+          quantity: detail.quantity,
+          unit: detail.unit
+        });
+      });
+      await Promise.all(unitPromises);
+      console.log(`[Update Recipe] ✅ Updated ingredient units for recipe`);
+    }
 
     const totalTime = Date.now() - startTime;
     console.log(`[Update Recipe] ✅ Recipe updated successfully in ${totalTime}ms`);
