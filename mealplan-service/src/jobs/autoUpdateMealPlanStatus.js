@@ -66,28 +66,6 @@ const autoUpdateMealPlanStatus = async () => {
 
     console.log(`\n✅ Đã cập nhật ${updatedCount} meal plan(s) thành "completed"`);
 
-    // 3️⃣ Kiểm tra và xóa completed cũ (chỉ giữ 2 bản ghi gần nhất) cho TỪNG USER
-    console.log(`\n🧹 Đang dọn dẹp meal plans completed cũ...`);
-
-    for (const userId of userIds) {
-      // Lấy tất cả completed của user, sắp xếp theo startDate giảm dần (mới nhất đầu)
-      const completedPlans = await MealPlan.find({
-        userId,
-        status: "completed"
-      }).sort({ startDate: -1, createdAt: -1 });
-
-      // Nếu có nhiều hơn 2, xóa những cái cũ (từ vị trí thứ 3 trở đi)
-      if (completedPlans.length > 2) {
-        const toDelete = completedPlans.slice(2); // Lấy từ vị trí 3 trở đi
-        const deleteIds = toDelete.map(p => p._id);
-        
-        const result = await MealPlan.deleteMany({ _id: { $in: deleteIds } });
-        deletedCount += result.deletedCount;
-
-        console.log(`   🗑️  User ${userId}: Đã xóa ${result.deletedCount} meal plan(s) completed cũ`);
-      }
-    }
-
     console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
     console.log(`✅ HOÀN THÀNH!`);
     console.log(`   📊 Cập nhật: ${updatedCount} meal plan(s)`);
