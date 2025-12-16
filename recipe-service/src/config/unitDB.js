@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 
 // Connection riêng cho KookaUnit database
 const unitDBConnection = mongoose.createConnection(
-  "mongodb+srv://phonghung04122003:bj3lhPfgVkzNKp4e@kookaunit.6djgq.mongodb.net/KookaUnit?retryWrites=true&w=majority&appName=KookaUnit",
+  process.env.UNIT_MONGODB_URI,
   {
     useNewUrlParser: true,
     useUnifiedTopology: true,
