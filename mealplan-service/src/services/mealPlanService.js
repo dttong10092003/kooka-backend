@@ -45,19 +45,7 @@ const createMealPlan = async (data) => {
     );
   }
 
-  // 1️⃣ Kiểm tra nếu người dùng có 3 mealplan chưa hoàn thành
-  const incompletePlans = await MealPlan.find({
-    userId,
-    status: { $ne: "completed" },
-  });
-
-  if (incompletePlans.length >= 3) {
-    throw new Error(
-      "Bạn đã có 3 meal plan chưa hoàn thành. Vui lòng hoàn thành hoặc xóa bớt."
-    );
-  }
-
-  // 2️⃣ Kiểm tra trùng ngày với mealplan khác (chưa hoàn thành)
+  // 1️⃣ Kiểm tra trùng ngày với mealplan khác (chưa hoàn thành)
   const selectedDates = plans.map((p) => dayjs(p.date).toDate());
 
   const conflictPlans = await MealPlan.find({
