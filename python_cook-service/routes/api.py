@@ -76,18 +76,34 @@ def search(req: SearchRequest):
                     continue
 
                 # === SCORING ===
-                # 1. Ingredient matching score
+                # 1. Ingredient matching score (ưu tiên trùng nguyên liệu cao hơn vector)
                 if user_ings:
                     common_ings = hit_ings & user_ings
-                    match_ratio = len(common_ings) / len(user_ings)
-                    coverage_ratio = len(common_ings) / len(hit_ings) if len(hit_ings) > 0 else 0
-                    
-                    # Kết hợp match_ratio (user có đủ nguyên liệu) và coverage_ratio (món cần ít nguyên liệu)
-                    ingredient_score = (match_ratio * 0.7 + coverage_ratio * 0.3) * 1000
-                    
-                    # Nếu match_ratio quá thấp, bỏ qua
-                    if match_ratio < 0.3:
+                    common_count = len(common_ings)
+                    match_ratio = common_count / len(user_ings)
+                    coverage_ratio = common_count / len(hit_ings) if len(hit_ings) > 0 else 0
+                    union_count = len(hit_ings | user_ings)
+                    jaccard = common_count / union_count if union_count else 0
+
+                    # Ngưỡng tối thiểu về độ phủ nguyên liệu: món nhiều nguyên liệu cần trùng nhiều hơn
+                    coverage_threshold = 0.25
+                    if len(hit_ings) >= 12:
+                        coverage_threshold = 0.35
+                    elif len(hit_ings) >= 8:
+                        coverage_threshold = 0.30
+
+                    # Loại bỏ món có độ phủ thấp hoặc tỉ lệ trùng thấp
+                    if match_ratio < 0.5:
                         continue
+                    if coverage_ratio < coverage_threshold:
+                        continue
+
+                    ingredient_signal = (
+                        match_ratio * 0.55 +
+                        coverage_ratio * 0.35 +
+                        jaccard * 0.10
+                    )
+                    ingredient_score = ingredient_signal * 1500
                 else:
                     # Không có nguyên liệu filter
                     ingredient_score = 500
@@ -103,9 +119,9 @@ def search(req: SearchRequest):
 
                 # === TỔNG HỢP ===
                 relevance_score = (
-                    ingredient_score * 2.0 +    # Ưu tiên nguyên liệu khớp
-                    vector_score * 0.5 +        # Semantic similarity
-                    popularity_score * 0.5      # Popularity
+                    ingredient_score * 3.0 +    # Ưu tiên nguyên liệu khớp mạnh hơn
+                    vector_score * 0.3 +        # Vector chỉ hỗ trợ
+                    popularity_score * 0.4      # Popularity
                 )
 
                 ingredients_raw = meta.get("ingredients", "")
