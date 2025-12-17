@@ -1,4 +1,18 @@
 const submissionService = require("../services/submissionService");
+const axios = require("axios");
+
+const USER_SERVICE_URL = process.env.USER_SERVICE_URL || 'http://user-service:5001';
+
+// Helper function để lấy thông tin user
+async function getUserInfo(userId) {
+  try {
+    const response = await axios.get(`${USER_SERVICE_URL}/api/users/${userId}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Failed to get user info for ${userId}:`, error.message);
+    return null;
+  }
+}
 
 // Lấy tất cả đề xuất (admin)
 exports.getAllSubmissions = async (req, res) => {
@@ -50,11 +64,14 @@ exports.getSubmission = async (req, res) => {
 exports.createSubmission = async (req, res) => {
   try {
     const userId = req.user?.id || req.headers['x-user-id'];
-    const userName = req.user?.name || req.headers['x-user-name'] || 'Anonymous';
     
     if (!userId) {
       return res.status(401).json({ error: 'Vui lòng đăng nhập' });
     }
+    
+    // Lấy thông tin user từ user-service
+    const userInfo = await getUserInfo(userId);
+    const userName = userInfo?.name || userInfo?.username || 'Anonymous';
     
     const submission = await submissionService.createSubmission(req.body, userId, userName);
     res.status(201).json({
