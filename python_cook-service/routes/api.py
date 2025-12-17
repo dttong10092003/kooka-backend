@@ -183,6 +183,17 @@ def search_by_keyword(req: KeywordSearchRequest):
 
         print(f"[Search Keyword] Query: '{keywords}' → Normalized: {keyword_list}")
 
+        # Heuristic: action words (e.g., 'xào') should appear in result names
+        # Map query action tokens to allowed synonyms in names
+        action_map = {
+            "xao": {"xao", "chien", "ran"},
+            "xào": {"xao", "chien", "ran"},
+            "chien": {"chien", "ran"},
+            "rán": {"ran", "chien"},
+            "ran": {"ran", "chien"}
+        }
+        query_actions = {tok for tok in keyword_list if tok in action_map}
+
         # Build query text với trọng số cao cho tên món
         q = f"{keywords}. Món ăn: {keywords}. Tìm kiếm: {keywords}"
 
@@ -197,6 +208,7 @@ def search_by_keyword(req: KeywordSearchRequest):
         )
 
         hits = []
+        MIN_VECTOR_SCORE = 500  # Tăng ngưỡng: yêu cầu tương đồng ngữ nghĩa mạnh hơn
         if results and results.get("ids"):
             for i, rid in enumerate(results["ids"][0]):
                 meta = results["metadatas"][0][i]
@@ -285,6 +297,18 @@ def search_by_keyword(req: KeywordSearchRequest):
                 num_rates = meta.get("numberOfRate", 0)
                 popularity_score = (rate / 5.0) * math.log(1 + num_rates) * 50
 
+                # === ACTION WORD HEURISTIC ===
+                # If query contains an action word (e.g., 'xao'), ensure name includes a synonym
+                action_required = len(query_actions) > 0
+                action_ok = True
+                if action_required:
+                    action_ok = False
+                    for act in query_actions:
+                        synonyms = action_map.get(act, set())
+                        if any(syn in name_no_accent for syn in synonyms) or any(syn in short_no_accent for syn in synonyms):
+                            action_ok = True
+                            break
+
                 # === TỔNG HỢP ĐIỂM (HYBRID APPROACH) ===
                 # 🎯 Công thức cân bằng giữa Text và Vector
                 # 
@@ -298,8 +322,27 @@ def search_by_keyword(req: KeywordSearchRequest):
                     popularity_score * 0.5         # Popularity boost
                 )
                 
-                # Filtering: Chỉ lấy kết quả có điểm > 0
+                # === RELEVANCE FILTERS ===
+                # Yêu cầu: hoặc text mạnh, hoặc vector đủ mạnh
+                short_query = len(keyword_list) <= 2
+                name_match_pct = (matched_in_name / len(keyword_list)) if len(keyword_list) > 0 else 0.0
+                required_pct = 1.0 if short_query else 0.6
+                strong_text = (
+                    exact_match_score > 0 or
+                    phrase_match_score > 0 or
+                    name_match_pct >= required_pct
+                )
+
                 if relevance_score <= 0:
+                    continue
+                # Với truy vấn ngắn (≤2 từ), yêu cầu đủ từ khóa trong tên nếu không có exact/phrase
+                if short_query and not (exact_match_score > 0 or phrase_match_score > 0 or name_match_pct >= 1.0):
+                    continue
+                if not strong_text and vector_score < MIN_VECTOR_SCORE:
+                    # Too weak semantically and lexically
+                    continue
+                if action_required and not action_ok:
+                    # Query asked for an action (e.g., 'xào') but name doesn't reflect it
                     continue
                 
                 print(f"[Score] '{meta.get('name')}' → Total={relevance_score:.1f} (text={text_match_score:.0f}, vector={vector_score:.1f})")
@@ -328,7 +371,7 @@ def search_by_keyword(req: KeywordSearchRequest):
                     "text_score": text_match_score
                 })
 
-        # Sort theo relevance_score giảm dần
+        # Sort theo relevance_score giảm dần và áp dụng top_k
         hits = sorted(hits, key=lambda x: x["relevance_score"], reverse=True)[:req.top_k]
         
         print(f"[Search Keyword] Found {len(hits)} results")
