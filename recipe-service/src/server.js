@@ -8,6 +8,7 @@ const ingredientRoutes = require("./routes/ingredientRoutes");
 const cuisineRoutes = require("./routes/cuisineRoutes");
 const categoryRoutes = require("./routes/categoryRoutes");
 const tagRoutes = require("./routes/tagRoutes");
+const submissionRoutes = require("./routes/submissionRoutes");
 
 dotenv.config();
 const app = express();
@@ -25,6 +26,7 @@ app.use(express.json({ limit: "100mb" }));
 
 // Routes
 app.use("/api/recipes", recipeRoutes);
+app.use("/api/submissions", submissionRoutes); // Đề xuất công thức
 app.use("/api/ingredient-types", typeRoutes);
 app.use("/api/ingredients", ingredientRoutes);
 app.use("/api/cuisines", cuisineRoutes);

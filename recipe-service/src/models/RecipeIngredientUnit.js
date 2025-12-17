@@ -34,13 +34,17 @@ const RecipeIngredientUnitSchema = new mongoose.Schema({
       // Đơn vị đóng gói
       'gói', 'hộp', 'ổ', 'thanh'
     ]
+  },
+  isSubmission: {
+    type: Boolean,
+    default: false // true nếu là submission, false nếu là recipe
   }
 }, { 
   timestamps: true 
 });
 
 // Index để query nhanh
-RecipeIngredientUnitSchema.index({ recipeId: 1, ingredientId: 1 }, { unique: true });
+RecipeIngredientUnitSchema.index({ recipeId: 1, ingredientId: 1, isSubmission: 1 });
 
 // Sử dụng connection riêng cho database KookaUnit
 module.exports = unitDBConnection.model("RecipeIngredientUnit", RecipeIngredientUnitSchema);
