@@ -6,8 +6,17 @@ const USER_SERVICE_URL = process.env.USER_SERVICE_URL || 'http://user-service:50
 // Helper function để lấy thông tin user
 async function getUserInfo(userId) {
   try {
-    const response = await axios.get(`${USER_SERVICE_URL}/api/users/${userId}`);
-    return response.data;
+    const response = await axios.get(`${USER_SERVICE_URL}/api/profile/${userId}`);
+    const profile = response.data;
+    
+    // Ghép firstName và lastName thành tên đầy đủ
+    if (profile.firstName && profile.lastName) {
+      return {
+        name: `${profile.firstName} ${profile.lastName}`.trim()
+      };
+    }
+    
+    return { name: profile.firstName || profile.lastName || 'Anonymous' };
   } catch (error) {
     console.error(`Failed to get user info for ${userId}:`, error.message);
     return null;
@@ -71,7 +80,7 @@ exports.createSubmission = async (req, res) => {
     
     // Lấy thông tin user từ user-service
     const userInfo = await getUserInfo(userId);
-    const userName = userInfo?.name || userInfo?.username || 'Anonymous';
+    const userName = userInfo?.name || 'Anonymous';
     
     const submission = await submissionService.createSubmission(req.body, userId, userName);
     res.status(201).json({
