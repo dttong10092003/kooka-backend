@@ -208,7 +208,9 @@ def search_by_keyword(req: KeywordSearchRequest):
         )
 
         hits = []
-        MIN_VECTOR_SCORE = 500  # Tăng ngưỡng: yêu cầu tương đồng ngữ nghĩa mạnh hơn
+        MIN_VECTOR_SCORE = 420   # Hạ ngưỡng để giữ thêm món liên quan (phở gà/tái/xào, bò xào,...)
+        RELAX_VECTOR_SCORE = 300 # Ngưỡng nới lỏng nếu kết quả quá ít
+        MIN_RESULTS_SOFT = max(5, req.top_k // 2)  # Nếu ít hơn mức này sẽ nới lỏng
         if results and results.get("ids"):
             for i, rid in enumerate(results["ids"][0]):
                 meta = results["metadatas"][0][i]
@@ -323,10 +325,10 @@ def search_by_keyword(req: KeywordSearchRequest):
                 )
                 
                 # === RELEVANCE FILTERS ===
-                # Yêu cầu: hoặc text mạnh, hoặc vector đủ mạnh
+                # Yêu cầu: text đủ mạnh HOẶC vector >= MIN_VECTOR_SCORE
                 short_query = len(keyword_list) <= 2
                 name_match_pct = (matched_in_name / len(keyword_list)) if len(keyword_list) > 0 else 0.0
-                required_pct = 1.0 if short_query else 0.6
+                required_pct = 0.7 if short_query else 0.6  # nới lỏng cho truy vấn ngắn để ra thêm món liên quan
                 strong_text = (
                     exact_match_score > 0 or
                     phrase_match_score > 0 or
@@ -334,9 +336,6 @@ def search_by_keyword(req: KeywordSearchRequest):
                 )
 
                 if relevance_score <= 0:
-                    continue
-                # Với truy vấn ngắn (≤2 từ), yêu cầu đủ từ khóa trong tên nếu không có exact/phrase
-                if short_query and not (exact_match_score > 0 or phrase_match_score > 0 or name_match_pct >= 1.0):
                     continue
                 if not strong_text and vector_score < MIN_VECTOR_SCORE:
                     # Too weak semantically and lexically
@@ -370,6 +369,56 @@ def search_by_keyword(req: KeywordSearchRequest):
                     "vector_score": vector_score,
                     "text_score": text_match_score
                 })
+
+        # Nếu kết quả quá ít, nới lỏng nhẹ (giữ món vector >= RELAX_VECTOR_SCORE hoặc name_match_pct >= 0.5)
+        if len(hits) < MIN_RESULTS_SOFT and results and results.get("ids"):
+            relaxed = []
+            for i, rid in enumerate(results["ids"][0]):
+                meta = results["metadatas"][0][i]
+                distance = results["distances"][0][i]
+                vector_score = 1000 / (1 + distance * 2) if distance >= 0 else 0
+                name_no_accent = meta.get('nameNoAccent', unidecode(meta.get('name', '').lower()))
+                name_words = set(name_no_accent.split())
+                matched_in_name = sum(1 for kw in keyword_list if kw in name_words)
+                name_match_pct = (matched_in_name / len(keyword_list)) if len(keyword_list) > 0 else 0.0
+                if action_required:
+                    short_no_accent = unidecode(meta.get('short', '').lower())
+                    action_ok = any(any(syn in txt for syn in action_map.get(act, set())) for txt in [name_no_accent, short_no_accent] for act in query_actions)
+                    if not action_ok:
+                        continue
+                if vector_score >= RELAX_VECTOR_SCORE or name_match_pct >= 0.5:
+                    # Recompute scores quickly
+                    exact_match_score = 1000 if keywords_no_accent == name_no_accent else 0
+                    phrase_match_score = 0
+                    if len(keyword_list) >= 2:
+                        qp = " ".join(keyword_list)
+                        if qp in name_no_accent:
+                            phrase_match_score = 500
+                    word_match_score = name_match_pct * 300
+                    text_match_score = exact_match_score + phrase_match_score + word_match_score
+                    relevance_score = text_match_score * 2.0 + vector_score * 3.0
+                    ingredients_raw = meta.get("ingredients", "")
+                    ingredients_list = [ing.strip() for ing in ingredients_raw.split(",") if ing.strip()]
+                    relaxed.append({
+                        "id": meta.get("id"),
+                        "name": meta.get("name"),
+                        "short": meta.get("short", ""),
+                        "image": meta.get("image", ""),
+                        "calories": meta.get("calories", 0),
+                        "time": meta.get("time", ""),
+                        "size": meta.get("size", ""),
+                        "difficulty": meta.get("difficulty", ""),
+                        "cuisine": meta.get("cuisine", ""),
+                        "category": meta.get("category", ""),
+                        "rate": meta.get("rate", 0.0),
+                        "numberOfRate": meta.get("numberOfRate", 0),
+                        "ingredients": ingredients_list,
+                        "distance": distance,
+                        "relevance_score": relevance_score,
+                        "vector_score": vector_score,
+                        "text_score": text_match_score
+                    })
+            hits = (hits + relaxed)
 
         # Sort theo relevance_score giảm dần và áp dụng top_k
         hits = sorted(hits, key=lambda x: x["relevance_score"], reverse=True)[:req.top_k]
