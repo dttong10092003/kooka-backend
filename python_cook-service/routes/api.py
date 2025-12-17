@@ -13,45 +13,30 @@ router = APIRouter()
 def search(req: SearchRequest):
     """
     Tìm kiếm theo danh sách nguyên liệu với scoring thông minh:
-    - Ưu tiên món có nhiều nguyên liệu khớp
-    - Kết hợp với vector similarity
-    - Tính đến rating và popularity
+    - KHÔNG dùng vector search (không cần semantic cho ingredient matching)
+    - Filtering chính xác: Chỉ trả về món có TỈ LỆ MATCH ≥ 60%
+    - Ưu tiên món ít nguyên liệu (3/5 > 3/10)
+    - Sắp xếp theo: Match ratio → Số nguyên liệu khớp → Popularity
     """
     try:
-        # Build query text cho embedding
-        ingredients_text = ", ".join(req.ingredients) if req.ingredients else ""
-        tags_text = ", ".join(req.tags) if req.tags else ""
+        if not req.ingredients:
+            return {"query": "No ingredients provided", "hits": []}
         
-        q = f"Nguyên liệu: {ingredients_text}"
-        if tags_text:
-            q += f". Tags: {tags_text}"
-        if req.cuisine:
-            q += f". Cuisine: {req.cuisine}"
-        if req.category:
-            q += f". Category: {req.category}"
-        if not q.strip():
-            q = "Tìm món"
+        print(f"[Search Ingredients] User ingredients: {req.ingredients}")
 
-        print(f"[Search] Ingredients query: {req.ingredients}")
-
-        # Encode query thành vector
-        q_emb = embed_model.encode(q).tolist()
-
-        # Query ChromaDB
-        results = collection.query(
-            query_embeddings=[q_emb],
-            n_results=min(req.top_k * 5, 100),
-            include=["metadatas", "distances"]
-        )
+        # Chuẩn hóa user ingredients
+        user_ings = set(ing.strip().lower() for ing in req.ingredients)
+        
+        # Lấy TẤT CẢ recipes từ ChromaDB (không dùng vector search)
+        results = collection.get(include=["metadatas"])
 
         hits = []
         if results and results.get("ids"):
-            for i, rid in enumerate(results["ids"][0]):
-                meta = results["metadatas"][0][i]
+            for i, rid in enumerate(results["ids"]):
+                meta = results["metadatas"][i]
                 
-                # Parse ingredients và tags
+                # Parse ingredients và tags từ recipe
                 hit_ings = set(ing.strip().lower() for ing in meta.get("ingredients", "").split(", ") if ing.strip())
-                user_ings = set(ing.strip().lower() for ing in req.ingredients)
                 hit_tags = set(tag.strip().lower() for tag in meta.get("tags", "").split(", ") if tag.strip())
                 user_tags = set(tag.strip().lower() for tag in req.tags)
 
@@ -75,37 +60,58 @@ def search(req: SearchRequest):
                 if not category_match:
                     continue
 
+                # === INGREDIENT MATCHING ===
+                matched_ings = user_ings.intersection(hit_ings)
+                matched_count = len(matched_ings)
+                total_ings = len(hit_ings)
+                
+                # TỈ LỆ MATCH: Số nguyên liệu user có / Tổng nguyên liệu của món
+                match_ratio = matched_count / total_ings if total_ings > 0 else 0
+                
+                # USER COVERAGE: Bao nhiêu % nguyên liệu user được sử dụng
+                user_coverage = matched_count / len(user_ings) if user_ings else 0
+                
+                # === NGƯỠNG LỌC ===
+                # Rule 1: Món PHẢI match ít nhất 60% tổng nguyên liệu
+                MIN_MATCH_RATIO = 0.6  # 60%
+                if match_ratio < MIN_MATCH_RATIO:
+                    print(f"[Search] ❌ Skip '{meta.get('name')}' - Match {matched_count}/{total_ings} = {match_ratio*100:.0f}% < {MIN_MATCH_RATIO*100:.0f}%")
+                    continue
+                
+                # Rule 2: Hoặc món match ít nhất 80% nguyên liệu user nhập (cho phép user nhập thêm 1-2 thứ)
+                MIN_USER_COVERAGE = 0.8  # 80%
+                if user_coverage < MIN_USER_COVERAGE and match_ratio < 0.8:
+                    print(f"[Search] ❌ Skip '{meta.get('name')}' - User coverage {matched_count}/{len(user_ings)} = {user_coverage*100:.0f}% < {MIN_USER_COVERAGE*100:.0f}%")
+                    continue
+                
+                print(f"[Search] ✅ Match '{meta.get('name')}' - {matched_count}/{total_ings} ({match_ratio*100:.0f}%), user coverage: {user_coverage*100:.0f}%")
+
                 # === SCORING ===
-                # 1. Ingredient matching score
-                if user_ings:
-                    common_ings = hit_ings & user_ings
-                    match_ratio = len(common_ings) / len(user_ings)
-                    coverage_ratio = len(common_ings) / len(hit_ings) if len(hit_ings) > 0 else 0
-                    
-                    # Kết hợp match_ratio (user có đủ nguyên liệu) và coverage_ratio (món cần ít nguyên liệu)
-                    ingredient_score = (match_ratio * 0.7 + coverage_ratio * 0.3) * 1000
-                    
-                    # Nếu match_ratio quá thấp, bỏ qua
-                    if match_ratio < 0.3:
-                        continue
-                else:
-                    # Không có nguyên liệu filter
-                    ingredient_score = 500
-
-                # 2. Vector similarity
-                distance = results["distances"][0][i]
-                vector_score = 1000 / (1 + distance) if distance >= 0 else 0
-
-                # 3. Popularity score
+                # 1. Match ratio score (càng cao càng tốt)
+                ratio_score = match_ratio * 1000
+                
+                # 2. Matched count score (càng nhiều càng tốt)
+                count_score = matched_count * 50
+                
+                # 3. Recipe size penalty (ưu tiên món ít nguyên liệu hơn)
+                # Món 3/5 nguyên liệu > Món 3/10 nguyên liệu
+                size_penalty = -total_ings * 5
+                
+                # 4. User coverage bonus (sử dụng hết nguyên liệu user có)
+                coverage_bonus = user_coverage * 200
+                
+                # 5. Popularity score (rating thấp để không ảnh hưởng nhiều)
                 rate = meta.get("rate", 0.0)
                 num_rates = meta.get("numberOfRate", 0)
-                popularity_score = (rate / 5.0) * math.log(1 + num_rates) * 100
+                popularity_score = (rate / 5.0) * math.log(1 + num_rates) * 30
 
                 # === TỔNG HỢP ===
                 relevance_score = (
-                    ingredient_score * 2.0 +    # Ưu tiên nguyên liệu khớp
-                    vector_score * 0.5 +        # Semantic similarity
-                    popularity_score * 0.5      # Popularity
+                    ratio_score +           # Ưu tiên cao nhất: Tỉ lệ match
+                    count_score +           # Số lượng nguyên liệu khớp
+                    size_penalty +          # Penalty cho món nhiều nguyên liệu
+                    coverage_bonus +        # Bonus cho sử dụng hết nguyên liệu user có
+                    popularity_score        # Popularity (thấp)
                 )
 
                 ingredients_raw = meta.get("ingredients", "")
@@ -125,17 +131,19 @@ def search(req: SearchRequest):
                     "rate": rate,
                     "numberOfRate": num_rates,
                     "ingredients": ingredients_list,
-                    "distance": distance,
                     "relevance_score": relevance_score,
-                    "match_ratio": match_ratio if user_ings else 1.0
+                    "match_ratio": match_ratio,
+                    "matched_count": matched_count,
+                    "total_ingredients": total_ings,
+                    "user_coverage": user_coverage
                 })
 
-        # Sort theo relevance_score
-        hits = sorted(hits, key=lambda x: x["relevance_score"], reverse=True)[:req.top_k]
+        # Sort theo: 1. Match ratio, 2. Matched count, 3. Popularity
+        hits = sorted(hits, key=lambda x: (x["match_ratio"], x["matched_count"], x["rate"]), reverse=True)[:req.top_k]
         
-        print(f"[Search] Found {len(hits)} results")
+        print(f"[Search Ingredients] Found {len(hits)} results with match_ratio ≥ {0.6*100:.0f}%")
 
-        return {"query": q, "hits": hits}
+        return {"query": f"Ingredients: {', '.join(req.ingredients)}", "hits": hits}
     except Exception as e:
         print(f"[Search] Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -143,11 +151,22 @@ def search(req: SearchRequest):
 @router.post("/search/search-by-keyword")
 def search_by_keyword(req: KeywordSearchRequest):
     """
-    Tìm kiếm theo keyword với thuật toán thông minh như Google/YouTube:
-    1. Exact match (khớp chính xác) - điểm cao nhất
-    2. Phrase match (chuỗi từ liên tiếp) - điểm cao
-    3. All words match (tất cả từ có mặt) - điểm trung bình
-    4. Partial match (một số từ) - điểm thấp
+    🔍 HYBRID SEARCH - Kết hợp Text Matching + Vector Search:
+    
+    1. **Vector Search (Semantic)**: Tìm món ăn có nghĩa tương tự
+       - "gà chiên" → "gà rán", "gà giòn", "gà KFC"
+       - "phở bò" → "phở tái", "phở nạm", "bún bò"
+       - Trọng số cao (3.0) để khai thác sức mạnh AI
+    
+    2. **Text Matching (Lexical)**: Đảm bảo độ chính xác
+       - Exact match: Khớp 100% (điểm cao)
+       - Phrase match: Chuỗi từ liên tiếp
+       - Word match: Từng từ riêng lẻ
+       - Trọng số vừa phải (2.0)
+    
+    3. **Filtering**: Tags, Cuisine, Category
+    
+    → Kết quả: Vừa chính xác (text) vừa thông minh (vector)
     """
     try:
         # Chuẩn hóa query
@@ -162,7 +181,7 @@ def search_by_keyword(req: KeywordSearchRequest):
         if not keyword_list:
             return {"query": keywords, "hits": []}
 
-        print(f"[Search] Query: '{keywords}' → Keywords: {keyword_list}")
+        print(f"[Search Keyword] Query: '{keywords}' → Normalized: {keyword_list}")
 
         # Build query text với trọng số cao cho tên món
         q = f"{keywords}. Món ăn: {keywords}. Tìm kiếm: {keywords}"
@@ -214,176 +233,107 @@ def search_by_keyword(req: KeywordSearchRequest):
                 if not category_match:
                     continue
 
-                # === SCORING SYSTEM (Giống Google) ===
+                # === VECTOR SEARCH - SEMANTIC SIMILARITY ===
+                # Đây là phần QUAN TRỌNG NHẤT - AI hiểu nghĩa của query
+                distance = results["distances"][0][i]
+                # Chuyển distance → similarity score (distance càng nhỏ = càng giống)
+                vector_score = 1000 / (1 + distance * 2) if distance >= 0 else 0
                 
-                # 1. EXACT MATCH - Khớp chính xác toàn bộ query (score cao nhất)
+                print(f"[Vector] '{meta.get('name')}' - distance={distance:.3f}, vector_score={vector_score:.1f}")
+
+                # === TEXT MATCHING - LEXICAL PRECISION ===
+                # Đảm bảo độ chính xác bằng text matching
+                name = meta.get('name', '')
+                name_lower = meta.get('nameLowercase', name.lower())
+                name_no_accent = meta.get('nameNoAccent', unidecode(name_lower))
+                short = meta.get('short', '').lower()
+                short_no_accent = unidecode(short)
+                
+                # 1. EXACT MATCH - Khớp 100%
                 exact_match_score = 0
                 if keywords_no_accent == name_no_accent:
-                    exact_match_score = 1000  # Điểm cực cao - match chính xác 100%
+                    exact_match_score = 1000
+                    print(f"[Text] ✅ EXACT MATCH: '{name}'")
                 elif keywords_lower == name_lower:
                     exact_match_score = 900
-                # Substring exact match: Chỉ cho điểm cao nếu là WORD BOUNDARY
-                # Ví dụ: "bún chả" trong "bún chả hà nội" ✅
-                # Nhưng: "chao" trong "chao ga" ✅ (này sẽ được xử lý bởi phrase match)
-                elif len(keyword_list) >= 2 and (" " + keywords_no_accent + " ") in (" " + name_no_accent + " "):
-                    # Thêm space để đảm bảo word boundary
-                    exact_match_score = 800
-                elif len(keyword_list) >= 2 and (" " + keywords_lower + " ") in (" " + name_lower + " "):
-                    exact_match_score = 700
                 
-                # 2. PHRASE MATCH - Chuỗi từ liên tiếp xuất hiện
+                # 2. PHRASE MATCH - Chuỗi từ xuất hiện liên tiếp
                 phrase_match_score = 0
                 if len(keyword_list) >= 2:
-                    # Kiểm tra chuỗi từ có xuất hiện liên tiếp không
                     query_phrase = " ".join(keyword_list)
                     if query_phrase in name_no_accent:
                         phrase_match_score = 500
+                        print(f"[Text] ✅ PHRASE MATCH in name: '{name}'")
                     elif query_phrase in short_no_accent:
-                        phrase_match_score = 300
+                        phrase_match_score = 200
                 
-                # 3. ALL WORDS MATCH - Tất cả từ có mặt (không nhất thiết liên tiếp)
-                # Tách thành words (từ riêng biệt), không dùng substring matching
+                # 3. WORD MATCH - Từng từ riêng lẻ
                 name_words = set(name_no_accent.split())
-                short_words = set(short_no_accent.split())
-                
-                # Chỉ match CHÍNH XÁC từ, không phải substring
-                # Ví dụ: "ga" match với "ga" nhưng KHÔNG match với "nga"
                 matched_in_name = sum(1 for kw in keyword_list if kw in name_words)
-                matched_in_short = sum(1 for kw in keyword_list if kw in short_words)
                 
-                all_words_match_score = 0
-                if matched_in_name == len(keyword_list):
-                    all_words_match_score = 400  # Match TẤT CẢ từ trong NAME → Điểm cao
-                elif matched_in_short == len(keyword_list):
-                    all_words_match_score = 100  # Match TẤT CẢ từ trong SHORT → Điểm thấp hơn (giảm từ 200 xuống 100)
-                
-                # 4. PARTIAL MATCH - Một số từ khớp (BM25-like scoring)
-                partial_match_score = 0
+                word_match_score = 0
                 if matched_in_name > 0:
-                    # Tỷ lệ từ khớp trong name
-                    match_ratio = matched_in_name / len(keyword_list)
-                    partial_match_score = match_ratio * 300
-                elif matched_in_short > 0:
-                    # Tỷ lệ từ khớp trong short description
-                    match_ratio = matched_in_short / len(keyword_list)
-                    partial_match_score = match_ratio * 150
+                    match_percentage = matched_in_name / len(keyword_list)
+                    word_match_score = match_percentage * 300
+                    print(f"[Text] Words matched: {matched_in_name}/{len(keyword_list)} in '{name}'")
                 
-                # CHÚ Ý: Nếu không match từ nào cả (matched_in_name = 0 và matched_in_short = 0)
-                # thì partial_match_score = 0, và exact/phrase cũng = 0
-                # → keyword_relevance sẽ = 0 → sẽ bị skip ở dưới
-
-                # 5. POSITION BOOST - Từ xuất hiện ở đầu tên món được ưu tiên
-                position_score = 0
-                name_first_word = name_no_accent.split()[0] if name_no_accent.split() else ""
-                if name_first_word and keyword_list and keyword_list[0] == name_first_word:
-                    position_score = 100
-
-                # === KEYWORD MATCHING SCORE ===
-                # Tổng điểm từ keyword matching (không tính vector và popularity)
-                keyword_relevance = (
-                    exact_match_score +
-                    phrase_match_score +
-                    all_words_match_score +
-                    partial_match_score +
-                    position_score
-                )
+                # TEXT MATCHING TOTAL
+                text_match_score = exact_match_score + phrase_match_score + word_match_score
                 
-                # === THRESHOLD THÔNG MINH HƠN ===
-                # Ưu tiên NAME hơn SHORT (như Google/YouTube)
-                
-                # Rule 1: Query 1 từ (như "phở", "gà") - BẮT BUỘC match trong NAME
-                if len(keyword_list) == 1:
-                    if matched_in_name == 0:
-                        print(f"[Search] ❌ Skip '{name}' - Single-word query must match in NAME (matched_in_name=0)")
-                        continue
-                
-                # Rule 2: Query 2+ từ (như "cháo gà", "phở bò") - Linh hoạt hơn
-                else:
-                    # Case A: Nếu match ít nhất 50% trong NAME → OK (ví dụ: "cháo gà" → "Cháo gà hầm", match 2/2)
-                    name_match_percentage = matched_in_name / len(keyword_list)
-                    
-                    # Case B: Nếu có exact/phrase match → OK luôn
-                    has_strong_match = exact_match_score > 0 or phrase_match_score > 0
-                    
-                    # Case C: Match trong SHORT chỉ chấp nhận nếu match >= 100% (tất cả từ)
-                    short_match_percentage = matched_in_short / len(keyword_list)
-                    
-                    # Quyết định: Phải thỏa ít nhất 1 trong 3 điều kiện
-                    if not has_strong_match:
-                        # Không có exact/phrase → Phải match đủ từ
-                        if name_match_percentage < 0.5 and short_match_percentage < 1.0:
-                            print(f"[Search] ❌ Skip '{name}' - Insufficient match (name={matched_in_name}/{len(keyword_list)}={name_match_percentage*100:.0f}%, short={matched_in_short}/{len(keyword_list)}={short_match_percentage*100:.0f}%)")
-                            continue
-                        
-                        # Nếu chỉ match trong SHORT (không match trong NAME) → Phải 100%
-                        if matched_in_name == 0 and short_match_percentage < 1.0:
-                            print(f"[Search] ❌ Skip '{name}' - Match only in SHORT but not 100% ({matched_in_short}/{len(keyword_list)})")
-                            continue
-                
-                print(f"[Search] ✅ Match '{name}' - keyword_relevance={keyword_relevance:.0f} (exact={exact_match_score}, phrase={phrase_match_score}, name_match={matched_in_name}/{len(keyword_list)}, short_match={matched_in_short}/{len(keyword_list)})")
-
-                # 6. VECTOR SIMILARITY - Khoảng cách vector (semantic)
-                distance = results["distances"][0][i]
-                # Chuyển distance thành score (distance nhỏ → score cao)
-                vector_score = 1000 / (1 + distance) if distance >= 0 else 0
-                
-                # 7. POPULARITY SCORE - Rating và số lượng đánh giá
+                # === POPULARITY SCORE ===
                 rate = meta.get("rate", 0.0)
                 num_rates = meta.get("numberOfRate", 0)
                 popularity_score = (rate / 5.0) * math.log(1 + num_rates) * 50
 
-                # === TỔNG HỢP ĐIỂM ===
-                # Trọng số theo độ ưu tiên (giống Google/YouTube)
-                # Tăng vector_score để tìm kiếm semantic thông minh hơn
+                # === TỔNG HỢP ĐIỂM (HYBRID APPROACH) ===
+                # 🎯 Công thức cân bằng giữa Text và Vector
+                # 
+                # Vector (3.0): Tìm món tương tự về nghĩa - Cao nhất để khai thác AI
+                # Text (2.0): Đảm bảo chính xác - Exact match được ưu tiên
+                # Popularity (0.5): Boost nhẹ - Món ngon, nhiều đánh giá
+                
                 relevance_score = (
-                    exact_match_score * 5.0 +      # Ưu tiên cao nhất
-                    phrase_match_score * 3.0 +     # Ưu tiên cao
-                    all_words_match_score * 2.0 +  # Ưu tiên trung bình
-                    partial_match_score * 1.0 +    # Ưu tiên thấp
-                    position_score * 1.5 +         # Boost cho từ đầu tiên
-                    vector_score * 1.0 +           # Semantic similarity (TĂNG từ 0.3 lên 1.0 để tìm kiếm thông minh)
-                    popularity_score * 0.5         # Popularity (chỉ boost thêm)
+                    text_match_score * 2.0 +       # Text matching
+                    vector_score * 3.0 +           # 🔥 VECTOR SEARCH - Trọng số cao nhất
+                    popularity_score * 0.5         # Popularity boost
                 )
+                
+                # Filtering: Chỉ lấy kết quả có điểm > 0
+                if relevance_score <= 0:
+                    continue
+                
+                print(f"[Score] '{meta.get('name')}' → Total={relevance_score:.1f} (text={text_match_score:.0f}, vector={vector_score:.1f})")
 
-                # Lúc này relevance_score > 0 là chắc chắn (do đã check keyword_relevance > 0)
-                if relevance_score > 0:
-                    ingredients_raw = meta.get("ingredients", "")
-                    ingredients_list = [ing.strip() for ing in ingredients_raw.split(",") if ing.strip()]
-                    
-                    hits.append({
-                        "id": meta.get("id"),
-                        "name": meta.get("name"),
-                        "short": meta.get("short", ""),
-                        "image": meta.get("image", ""),
-                        "calories": meta.get("calories", 0),
-                        "time": meta.get("time", ""),
-                        "size": meta.get("size", ""),
-                        "difficulty": meta.get("difficulty", ""),
-                        "cuisine": meta.get("cuisine", ""),
-                        "category": meta.get("category", ""),
-                        "rate": rate,
-                        "numberOfRate": num_rates,
-                        "ingredients": ingredients_list,
-                        "distance": distance,
-                        "relevance_score": relevance_score,
-                        # Debug info (có thể bỏ sau)
-                        "_debug": {
-                            "exact": exact_match_score,
-                            "phrase": phrase_match_score,
-                            "all_words": all_words_match_score,
-                            "partial": partial_match_score,
-                            "position": position_score,
-                            "vector": round(vector_score, 2),
-                            "popularity": round(popularity_score, 2)
-                        }
-                    })
+                # Build response
+                ingredients_raw = meta.get("ingredients", "")
+                ingredients_list = [ing.strip() for ing in ingredients_raw.split(",") if ing.strip()]
+                
+                hits.append({
+                    "id": meta.get("id"),
+                    "name": meta.get("name"),
+                    "short": meta.get("short", ""),
+                    "image": meta.get("image", ""),
+                    "calories": meta.get("calories", 0),
+                    "time": meta.get("time", ""),
+                    "size": meta.get("size", ""),
+                    "difficulty": meta.get("difficulty", ""),
+                    "cuisine": meta.get("cuisine", ""),
+                    "category": meta.get("category", ""),
+                    "rate": rate,
+                    "numberOfRate": num_rates,
+                    "ingredients": ingredients_list,
+                    "distance": distance,
+                    "relevance_score": relevance_score,
+                    "vector_score": vector_score,
+                    "text_score": text_match_score
+                })
 
         # Sort theo relevance_score giảm dần
         hits = sorted(hits, key=lambda x: x["relevance_score"], reverse=True)[:req.top_k]
         
-        print(f"[Search] Found {len(hits)} results")
+        print(f"[Search Keyword] Found {len(hits)} results")
         if hits:
-            print(f"[Search] Top result: '{hits[0]['name']}' (score: {hits[0]['relevance_score']:.2f})")
+            print(f"[Search Keyword] Top result: '{hits[0]['name']}' (total={hits[0]['relevance_score']:.1f}, vector={hits[0]['vector_score']:.1f}, text={hits[0]['text_score']:.1f})")
 
         return {"query": keywords, "hits": hits}
     except Exception as e:
