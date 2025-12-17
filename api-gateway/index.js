@@ -7,6 +7,7 @@ const authRoutes = require('./routes/authRoute');
 const userRoutes = require('./routes/userRoute');
 const recipeRoutes = require('./routes/recipeRoute');
 const submissionRoutes = require('./routes/submissionRoute');
+const ingredientDetailsRoutes = require('./routes/ingredientDetailsRoute');
 const searchRoutes = require('./routes/searchRoute');
 const ingredientRoutes = require('./routes/ingredientRoute');
 const ingredientTypeRoutes = require('./routes/ingredientTypeRoute');
@@ -77,6 +78,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/recipes', recipeRoutes);
 app.use('/api/submissions', submissionRoutes); // Đề xuất công thức
+app.use('/api/ingredient-details', ingredientDetailsRoutes); // Chi tiết nguyên liệu
 app.use('/api/search', searchRoutes);
 app.use('/api/ingredients', ingredientRoutes);
 app.use('/api/ingredient-types', ingredientTypeRoutes);
